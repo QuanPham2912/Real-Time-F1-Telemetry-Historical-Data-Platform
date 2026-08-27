@@ -1,20 +1,20 @@
-# Bỏ qua môi trường ảo
+# Skip the virtual environment
 venv/
 env/
 
-# Bỏ qua rác của Python (cache files)
+# Skip cache files
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 
-# Bỏ qua file cấu hình biến môi trường
+# Skip environment configuration files
 .env
 
-# Bỏ qua rác của các IDE (Visual Studio Code, PyCharm)
+# Skip IDE cache files (Visual Studio Code, PyCharm)
 .vscode/
 .idea/
 
-# Bỏ qua rác của thư viện test (nếu sau này dùng pytest)
+# Skip test library cache (if using pytest)
 .pytest_cache/
 htmlcov/
