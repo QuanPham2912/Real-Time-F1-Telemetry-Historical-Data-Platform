@@ -2,3 +2,6 @@ requests
 beautifulsoup4
 lxml
 Unidecode
+pytest
+pandas
+fastf1
