@@ -5,3 +5,4 @@ Unidecode
 pytest
 pandas
 fastf1
+kafka-python
