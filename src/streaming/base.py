@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+from metadata import f1_topic
+from typing import Iterable, Callable, Optional
 
 class BaseTopicManager(ABC):
     @abstractmethod
@@ -19,4 +21,21 @@ class BaseTopicManager(ABC):
 
     @abstractmethod
     def close(self):
+        pass
+
+class baseProducer(ABC):
+    @abstractmethod
+    def send(self, topic_name: f1_topic.F1Topic, message: dict, key: Optional[str] = None):
+        pass
+
+    @abstractmethod
+    def send_many(self, topic_name: f1_topic.F1Topic, messages: Iterable[dict] = None, key_builder: Optional[Callable[[dict], str]] = None):
+        pass
+
+    @abstractmethod
+    def close(self):
+        pass
+
+    @abstractmethod
+    def flush(self):
         pass
