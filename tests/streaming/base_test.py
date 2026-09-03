@@ -1,6 +1,8 @@
 import pytest
 from abc import ABC
-from streaming.base import BaseTopicManager
+from typing import Callable, Iterable, Optional
+from metadata import f1_topic
+from streaming.base import BaseTopicManager, baseProducer
 
 
 class TestBaseTopicManager:
@@ -57,3 +59,52 @@ class TestBaseTopicManager:
         manager = CompleteTopicManager()
         assert isinstance(manager, BaseTopicManager)
         assert isinstance(manager, ABC)
+
+
+class TestBaseProducer:
+    """Test suite for baseProducer abstract class."""
+
+    def test_base_producer_is_abstract(self):
+        """Test that baseProducer cannot be instantiated directly."""
+        with pytest.raises(TypeError):
+            baseProducer()
+
+    def test_base_producer_is_abc(self):
+        """Test that baseProducer is an Abstract Base Class."""
+        assert issubclass(baseProducer, ABC)
+
+    def test_base_producer_has_abstract_methods(self):
+        """Test that baseProducer has all required abstract methods."""
+        abstract_methods = baseProducer.__abstractmethods__
+        expected_methods = {'send', 'send_many', 'close', 'flush'}
+        assert abstract_methods == expected_methods
+
+    def test_incomplete_producer_cannot_be_instantiated(self):
+        """Test that a producer must implement all abstract methods."""
+
+        class IncompleteProducer(baseProducer):
+            def send(self, topic_name: str, message: dict, key: str = None):
+                pass
+
+        with pytest.raises(TypeError):
+            IncompleteProducer()
+
+    def test_complete_producer_can_be_instantiated(self):
+        """Test that a complete producer implementation can be instantiated."""
+
+        class CompleteProducer(baseProducer):
+            def send(self, topic_name: f1_topic.F1Topic, message: dict, key: str = None):
+                pass
+
+            def send_many(self, topic_name: f1_topic.F1Topic, messages: Iterable[dict] = None, key_builder: Optional[Callable[[dict], str]] = None):
+                pass
+
+            def close(self):
+                pass
+
+            def flush(self):
+                pass
+
+        producer = CompleteProducer()
+        assert isinstance(producer, baseProducer)
+        assert isinstance(producer, ABC)
