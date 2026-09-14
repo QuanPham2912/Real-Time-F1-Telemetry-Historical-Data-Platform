@@ -6,3 +6,4 @@ pytest
 pandas
 fastf1
 kafka-python
+pyspark
