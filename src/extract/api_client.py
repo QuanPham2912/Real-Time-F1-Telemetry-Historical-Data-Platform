@@ -27,11 +27,19 @@ class JolicaClient(Extractor):
         response.raise_for_status()
         data = response.json()
         return data["MRData"]["RaceTable"]["Races"]
+    
+    def extract_constructor(self, seasons :int):
+        URL = f"{self.baseURL}/{seasons}/constructors.json"
+        response = requests.get(URL, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        return data["MRData"]["ConstructorTable"]["Constructors"]
 
     def extract(self, seasons: int, round: int):
         result = {}
         result["Race"] = self.extract_race(seasons, round)
         result["Driver"] = self.extract_driver(seasons)
+        result["Constructor"] = self.extract_constructor(seasons)
         result["Results"] = self.extract_result(seasons, round)
         return result
         
