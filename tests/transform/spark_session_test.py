@@ -45,7 +45,11 @@ def test_get_session_uses_default_values_and_builds_session(monkeypatch):
     assert builder.calls == [
         ("appName", "F1_ETL_App"),
         ("master", "local[*]"),
-        ("config", "spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0"),
+        (
+            "config",
+            "spark.jars.packages",
+            "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,io.delta:delta-spark_2.12:3.1.0",
+        ),
         ("config", "spark.sql.shuffle.partitions", "4"),
         ("getOrCreate",),
     ]
