@@ -7,40 +7,40 @@ class JolicaClient(Extractor):
         self.baseURL = "https://api.jolpi.ca/ergast/f1"
 
     #Cao du lieu ve ket qua
-    def extract_result(self, seasons :int, round: int):
-        URL = f"{self.baseURL}/{seasons}/{round}/results.json"
+    def extract_result(self, season :int, round: int):
+        URL = f"{self.baseURL}/{season}/{round}/results.json"
         response = requests.get(URL, timeout=10)
         response.raise_for_status()
         data = response.json()
         return data["MRData"]["RaceTable"]["Races"][0]["Results"]
 
-    def extract_driver(self, seasons :int):
-        URL = f"{self.baseURL}/{seasons}/drivers.json"
+    def extract_driver(self, season :int):
+        URL = f"{self.baseURL}/{season}/drivers.json"
         response = requests.get(URL, timeout=10)
         response.raise_for_status()
         data = response.json()
         return data["MRData"]["DriverTable"]["Drivers"]
 
-    def extract_race(self, seasons :int, round :int):
-        URl = f"{self.baseURL}/{seasons}/{round}.json"
+    def extract_race(self, season :int, round :int):
+        URl = f"{self.baseURL}/{season}/{round}.json"
         response = requests.get(URl, timeout=10)
         response.raise_for_status()
         data = response.json()
         return data["MRData"]["RaceTable"]["Races"]
     
-    def extract_constructor(self, seasons :int):
-        URL = f"{self.baseURL}/{seasons}/constructors.json"
+    def extract_constructor(self, season :int):
+        URL = f"{self.baseURL}/{season}/constructors.json"
         response = requests.get(URL, timeout=10)
         response.raise_for_status()
         data = response.json()
         return data["MRData"]["ConstructorTable"]["Constructors"]
 
-    def extract(self, seasons: int, round: int):
+    def extract(self, season: int, round: int):
         result = {}
-        result["Race"] = self.extract_race(seasons, round)
-        result["Driver"] = self.extract_driver(seasons)
-        result["Constructor"] = self.extract_constructor(seasons)
-        result["Results"] = self.extract_result(seasons, round)
+        result["Race"] = self.extract_race(season, round)
+        result["Driver"] = self.extract_driver(season)
+        result["Constructor"] = self.extract_constructor(season)
+        result["Results"] = self.extract_result(season, round)
         return result
         
     

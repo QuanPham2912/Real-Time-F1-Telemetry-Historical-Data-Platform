@@ -19,6 +19,7 @@ x-airflow-common: &airflow-common
     - ${AIRFLOW_PROJ_DIR:-./airflow}/logs:/opt/airflow/logs
     - ${AIRFLOW_PROJ_DIR:-./airflow}/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-./airflow}/plugins:/opt/airflow/plugins
+    - fastf1_cache:/tmp/fastf1_cache
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on: &airflow-common-depends-on
     airflow-postgres:
@@ -242,3 +243,4 @@ volumes:
   kafka_data: {}
   minio_data: {}
   airflow_postgres_data: {}
+  fastf1_cache: {}
