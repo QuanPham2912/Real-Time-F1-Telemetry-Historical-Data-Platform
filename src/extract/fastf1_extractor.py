@@ -1,19 +1,17 @@
 import fastf1
-import pandas as pd
-from src.extract.base import Extractor
-from src.metadata.logger import ETLLogger
+from extract.base import Extractor
+from metadata.logger import ETLLogger
 import os
 from pathlib import Path
 
 logger = ETLLogger.get_logger()
 
 class FastF1Extractor(Extractor):
-    def __init__(self, cache_dir: str = None):
+    def __init__(self):
         super().__init__(source_name = "FastF1")
-        default_cache = Path(__file__).resolve().parents[2] / ".cache" / "fastf1"
-        cache_path = Path(cache_dir or os.getenv("FASTF1_CACHE_DIR", default_cache))
-        cache_path.mkdir(parents=True, exist_ok=True)
-        fastf1.Cache.enable_cache(str(cache_path))
+        CACHE_DIR = "/tmp/fastf1_cache"
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        fastf1.Cache.enable_cache(CACHE_DIR)
 
     def extract_session_data(self, season: int, round: int, session_type: str):
         session = fastf1.get_session(season, round, session_type)

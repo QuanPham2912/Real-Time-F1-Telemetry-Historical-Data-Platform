@@ -64,8 +64,8 @@ class StatsF1(Extractor):
             })
         return result
 
-    def extract_engine_supplier_detail(self, seasons :int ):
-        URL = f"{self.BaseURL}/moteurs-{seasons}.aspx"
+    def extract_engine_supplier_detail(self, season :int ):
+        URL = f"{self.BaseURL}/moteurs-{season}.aspx"
         result = []
         response = requests.get(URL, headers=self.headers, timeout=10)
         response.raise_for_status()
@@ -84,8 +84,8 @@ class StatsF1(Extractor):
             })
         return result
 
-    def extract_constructor_nation(self, seasons :int):
-        URL =f"{self.BaseURL}/constructeurs-{seasons}.aspx"
+    def extract_constructor_nation(self, season :int):
+        URL =f"{self.BaseURL}/constructeurs-{season}.aspx"
         result = []
         response = requests.get(URL, headers=self.headers, timeout=10)
         response.raise_for_status()
@@ -103,7 +103,7 @@ class StatsF1(Extractor):
                 "Started_time" : Strated_time
             })
         return result
-
+    
     def clean_gp_title_to_statsf1_slug(self, raw_text):
         # 1. Chuyển về chữ thường và xóa khoảng trắng thừa
         text = raw_text.lower().strip()
@@ -169,13 +169,13 @@ class StatsF1(Extractor):
 
         return result
 
-    def extract(self, seasons :int, round :int):
+    def extract(self, season :int, round :int):
         result = {
-            "Driver" : self.extract_driver_detail(seasons),
-            "Constructor" : self.extract_constructor_nation(seasons),
-            "Engine_Supplier" : self.extract_engine_supplier_detail(seasons),
-            "Car" : self.extract_car_detail(seasons),
-            "Result" : self.extract_detail_GP_information(seasons,round)
+            "Driver" : self.extract_driver_detail(season),
+            "Constructor" : self.extract_constructor_nation(season),
+            "Engine_Supplier" : self.extract_engine_supplier_detail(season),
+            "Car" : self.extract_car_detail(season),
+            "Result" : self.extract_detail_GP_information(season,round)
         }
         return result
 
