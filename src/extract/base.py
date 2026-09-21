@@ -25,7 +25,7 @@ class Extractor(ABC):
         logger.info(f"Starting extraction process: [{self.source_name}]")
         try:
             data = self.extract(**kwargs)
-            logger.info(f"[{self.source_name}] Successfully extracted {len(data)} rows")
+            logger.info(f"[{self.source_name}] Successfully extracted data.")
             return data
         except Exception as e:
             logger.exception(f"[{self.source_name}] Extraction failed: {e}")
