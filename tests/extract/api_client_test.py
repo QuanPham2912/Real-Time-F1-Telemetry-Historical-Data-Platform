@@ -21,7 +21,7 @@ def test_extract_result_requests_and_returns_results(monkeypatch):
 
 	result = JolicaClient().extract_result(2024, 3)
 
-	assert result == [{"position": "1"}]
+	assert result == [{"position": "1", "race_id": "2024_3", "source": "jolpica_api"}]
 	get.assert_called_once_with(
 		"https://api.jolpi.ca/ergast/f1/2024/3/results.json", timeout=10
 	)
@@ -37,7 +37,7 @@ def test_extract_driver_requests_and_returns_drivers(monkeypatch):
 
 	result = JolicaClient().extract_driver(2024)
 
-	assert result == [{"driverId": "max_verstappen"}]
+	assert result == [{"driverId": "max_verstappen", "source": "jolpica_api"}]
 	get.assert_called_once_with(
 		"https://api.jolpi.ca/ergast/f1/2024/drivers.json", timeout=10
 	)
@@ -53,7 +53,7 @@ def test_extract_race_requests_and_returns_races(monkeypatch):
 
 	result = JolicaClient().extract_race(2024, 3)
 
-	assert result == [{"round": "3"}]
+	assert result == [{"round": "3", "race_id": "2024_3", "source": "jolpica_api"}]
 	get.assert_called_once_with("https://api.jolpi.ca/ergast/f1/2024/3.json", timeout=10)
 	response.raise_for_status.assert_called_once_with()
 
@@ -67,7 +67,7 @@ def test_extract_constructor_requests_and_returns_constructors(monkeypatch):
 
 	result = JolicaClient().extract_constructor(2024)
 
-	assert result == [{"constructorId": "alpine"}]
+	assert result == [{"constructorId": "alpine", "source": "jolpica_api"}]
 	get.assert_called_once_with(
 		"https://api.jolpi.ca/ergast/f1/2024/constructors.json", timeout=10
 	)

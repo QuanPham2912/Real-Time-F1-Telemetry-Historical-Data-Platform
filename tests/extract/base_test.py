@@ -34,7 +34,7 @@ def test_run_returns_extracted_data_and_logs_success(monkeypatch):
 
 	assert result == data
 	logger.info.assert_any_call("Starting extraction process: [test-source]")
-	logger.info.assert_any_call("[test-source] Successfully extracted 1 rows")
+	logger.info.assert_any_call("[test-source] Successfully extracted data.")
 
 
 def test_run_logs_failure_and_reraises_exception(monkeypatch):
