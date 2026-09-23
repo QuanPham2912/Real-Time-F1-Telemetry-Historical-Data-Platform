@@ -1,17 +1,16 @@
 import pytest
-from unittest.mock import Mock, MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 import pandas as pd
-from datetime import timedelta
-from src.extract.fastf1_extractor import FastF1Extractor
+from extract.fastf1_extractor import FastF1Extractor
 
 
 class TestFastF1ExtractorInit:
     """Test FastF1Extractor initialization"""
     
-    @patch('src.extract.fastf1_extractor.fastf1.Cache.enable_cache')
+    @patch('extract.fastf1_extractor.fastf1.Cache.enable_cache')
     def test_init_enables_cache(self, mock_cache):
         """Test that __init__ enables cache with proper path"""
-        extractor = FastF1Extractor()
+        FastF1Extractor()
         # Verify enable_cache was called once with a string path
         assert mock_cache.call_count == 1
         # Get the argument passed to enable_cache
@@ -20,7 +19,7 @@ class TestFastF1ExtractorInit:
         assert isinstance(call_arg, str)
         assert 'fastf1' in call_arg
     
-    @patch('src.extract.fastf1_extractor.fastf1.Cache.enable_cache')
+    @patch('extract.fastf1_extractor.fastf1.Cache.enable_cache')
     def test_init_sets_source_name(self, mock_cache):
         """Test that source_name is set to 'FastF1'"""
         extractor = FastF1Extractor()
@@ -30,8 +29,8 @@ class TestFastF1ExtractorInit:
 class TestExtractSessionData:
     """Test extract_session_data method"""
     
-    @patch('src.extract.fastf1_extractor.fastf1.get_session')
-    @patch('src.extract.fastf1_extractor.fastf1.Cache.enable_cache')
+    @patch('extract.fastf1_extractor.fastf1.get_session')
+    @patch('extract.fastf1_extractor.fastf1.Cache.enable_cache')
     def test_extract_session_data_success(self, mock_cache, mock_get_session):
         """Test successful session data extraction"""
         # Setup mock session
@@ -46,8 +45,8 @@ class TestExtractSessionData:
         mock_session.load.assert_called_once()
         assert result == mock_session
     
-    @patch('src.extract.fastf1_extractor.fastf1.get_session')
-    @patch('src.extract.fastf1_extractor.fastf1.Cache.enable_cache')
+    @patch('extract.fastf1_extractor.fastf1.get_session')
+    @patch('extract.fastf1_extractor.fastf1.Cache.enable_cache')
     def test_extract_session_data_different_session_types(self, mock_cache, mock_get_session):
         """Test extraction with different session types"""
         mock_session = MagicMock()
@@ -66,7 +65,7 @@ class TestExtractSessionData:
 class TestExtractLapData:
     """Test extract_lap_data method"""
     
-    @patch('src.extract.fastf1_extractor.fastf1.Cache.enable_cache')
+    @patch('extract.fastf1_extractor.fastf1.Cache.enable_cache')
     def test_extract_lap_data_success(self, mock_cache):
         """Test successful lap data extraction"""
         # Create mock session with lap data
@@ -105,7 +104,7 @@ class TestExtractLapData:
         assert isinstance(result[0]['LapTime'], str)
         assert isinstance(result[0]['Sector1Time'], str)
     
-    @patch('src.extract.fastf1_extractor.fastf1.Cache.enable_cache')
+    @patch('extract.fastf1_extractor.fastf1.Cache.enable_cache')
     def test_extract_lap_data_empty_dataframe_raises_error(self, mock_cache):
         """Test that extraction with empty lap data raises KeyError"""
         mock_session = MagicMock()
@@ -119,7 +118,7 @@ class TestExtractLapData:
 class TestExtractWeatherData:
     """Test extract_weather_data method"""
     
-    @patch('src.extract.fastf1_extractor.fastf1.Cache.enable_cache')
+    @patch('extract.fastf1_extractor.fastf1.Cache.enable_cache')
     def test_extract_weather_data_success(self, mock_cache):
         """Test successful weather data extraction"""
         mock_session = MagicMock()
@@ -198,8 +197,8 @@ class TestExtractTelemetryStream:
         
         # Verify telemetry extraction
         assert len(result) == 2
-        assert all('DriverNumber' in record for record in result)
-        assert result[0]['DriverNumber'] == '1'
+        assert all('PermanentNumber' in record for record in result)
+        assert result[0]['PermanentNumber'] == '1'
         assert result[0]['Speed'] == 200
     
     @patch('src.extract.fastf1_extractor.fastf1.Cache.enable_cache')
@@ -219,8 +218,8 @@ class TestExtractTelemetryStream:
         
         assert result == []
     
-    @patch('src.extract.fastf1_extractor.fastf1.Cache.enable_cache')
-    @patch('src.extract.fastf1_extractor.logger')
+    @patch('extract.fastf1_extractor.fastf1.Cache.enable_cache')
+    @patch('extract.fastf1_extractor.logger')
     def test_extract_telemetry_stream_error_handling(self, mock_logger, mock_cache):
         """Test error handling in telemetry extraction"""
         mock_session = MagicMock()
@@ -244,11 +243,11 @@ class TestExtractTelemetryStream:
 class TestExtractMethod:
     """Test main extract method"""
     
-    @patch('src.extract.fastf1_extractor.FastF1Extractor.extract_telemetry_stream')
-    @patch('src.extract.fastf1_extractor.FastF1Extractor.extract_weather_data')
-    @patch('src.extract.fastf1_extractor.FastF1Extractor.extract_lap_data')
-    @patch('src.extract.fastf1_extractor.FastF1Extractor.extract_session_data')
-    @patch('src.extract.fastf1_extractor.fastf1.Cache.enable_cache')
+    @patch('extract.fastf1_extractor.FastF1Extractor.extract_telemetry_stream')
+    @patch('extract.fastf1_extractor.FastF1Extractor.extract_weather_data')
+    @patch('extract.fastf1_extractor.FastF1Extractor.extract_lap_data')
+    @patch('extract.fastf1_extractor.FastF1Extractor.extract_session_data')
+    @patch('extract.fastf1_extractor.fastf1.Cache.enable_cache')
     def test_extract_returns_all_data_types(self, mock_cache, mock_session_data, 
                                              mock_lap_data, mock_weather_data, mock_telemetry):
         """Test that extract method returns all required data types"""
@@ -272,8 +271,8 @@ class TestExtractMethod:
         assert isinstance(result['weather_data'], list)
         assert hasattr(result['telemetry_stream'], '__iter__')
     
-    @patch('src.extract.fastf1_extractor.fastf1.get_session')
-    @patch('src.extract.fastf1_extractor.fastf1.Cache.enable_cache')
+    @patch('extract.fastf1_extractor.fastf1.get_session')
+    @patch('extract.fastf1_extractor.fastf1.Cache.enable_cache')
     def test_extract_with_different_seasons_and_rounds(self, mock_cache, mock_get_session):
         """Test extract method with different seasons and rounds"""
         mock_session = MagicMock()

@@ -1,4 +1,12 @@
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType, FloatType, TimestampType, BooleanType
+from pyspark.sql.types import (
+    BooleanType,
+    FloatType,
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampType,
+)
 
 class F1Schemas:
     """
@@ -6,9 +14,9 @@ class F1Schemas:
     """
     #Schema for telementry data
     telemetry_schema = StructType([
-        StructField("DriverNumber", StringType(), True),
+        StructField("PermanentNumber", StringType(), True),
         StructField("Time", TimestampType(), True),
-        StructField("SesionTime", TimestampType(), True),
+        StructField("SessionTime", TimestampType(), True),
         StructField("Speed", FloatType(), True),
         StructField("Throttle", FloatType(), True),
         StructField("Brake", BooleanType(), True),
@@ -18,7 +26,9 @@ class F1Schemas:
         StructField("Distance", FloatType(), True),
         StructField("X", FloatType(), True),
         StructField("Y", FloatType(), True),
-        StructField("Z", FloatType(), True)
+        StructField("Z", FloatType(), True),
+        StructField("Session_id", StringType(), True),
+        StructField("Source", StringType(), True)
     ])
 
     #Schemas for Weather data
@@ -27,10 +37,12 @@ class F1Schemas:
         StructField("AirTemp", FloatType(), True),
         StructField("TrackTemp", FloatType(), True),
         StructField("Humidity", FloatType(), True),
-        StructField("RainFall", BooleanType(), True),
-        StructField("RainSpeed", FloatType(), True),
+        StructField("Rainfall", BooleanType(), True),
+        StructField("WindSpeed", FloatType(), True),
         StructField("WindDirection", IntegerType(), True),
-        StructField("Pressure", FloatType(), True)
+        StructField("Pressure", FloatType(), True),
+        StructField("Session_id", StringType(), True),
+        StructField("Source", StringType(), True)
     ])
 
     #Schemas for Lap data
@@ -42,13 +54,15 @@ class F1Schemas:
         StructField("Compound", StringType(), True),
         StructField("TyreLife", IntegerType(), True),
         StructField("FreshTyre", BooleanType(), True),
-        StructField("Sector1Time", TimestampType(), True),
-        StructField("Sector2Time", TimestampType(), True),
-        StructField("Sector3Time", TimestampType(), True),
-        StructField("PitInTime", TimestampType(), True),
-        StructField("PitOutTime", TimestampType(), True),
+        StructField("Sector1Time", StringType(), True),
+        StructField("Sector2Time", StringType(), True),
+        StructField("Sector3Time", StringType(), True),
+        StructField("PitInTime", StringType(), True),
+        StructField("PitOutTime", StringType(), True),
         StructField("TrackStatus", StringType(), True),
-        StructField("IsAccurate", BooleanType(), True)
+        StructField("IsAccurate", BooleanType(), True),
+        StructField("Session_id", StringType(), True),
+        StructField("Source", StringType(), True)
     ])
 
     """
@@ -62,17 +76,19 @@ class F1Schemas:
         StructField("givenName", StringType(), True),
         StructField("familyName", StringType(), True),
         StructField("dateOfBirth", TimestampType(), True),
-        StructField("nationality", StringType(), True)
+        StructField("nationality", StringType(), True),
+        StructField("source", StringType(), True)
     ]) 
 
     #Schema for Constructor data
     constructor_schema = StructType([
         StructField("constructorId", StringType(), True),
         StructField("name", StringType(), True),
-        StructField("nationality", StringType(), True)
+        StructField("nationality", StringType(), True),
+        StructField("source", StringType(), True)
     ])
 
-    #Schema for rave result
+    #Schema for race result
     result_schema = StructType([
         StructField("number", IntegerType(), True),
         StructField("position", IntegerType(), True),
@@ -80,6 +96,23 @@ class F1Schemas:
         StructField("points", FloatType(), True),
         StructField("Driver", driver_schema, True),
         StructField("Constructor", constructor_schema, True),
+        StructField("race_id", StringType(), True),
+        StructField("source", StringType(), True)
+    ])
+
+
+    location_schema = StructType([
+        StructField("lat", FloatType(), True),
+        StructField("long", FloatType(), True),
+        StructField("locality", StringType(), True),
+        StructField("country", StringType(), True)
+    ])
+
+    #Schema for circuit data
+    circuit_schema = StructType([
+        StructField("circuitId", StringType(), True),
+        StructField("circuitName", StringType(), True),
+        StructField("Location", location_schema, True)
     ])
 
     #Schema for race data
@@ -87,19 +120,11 @@ class F1Schemas:
         StructField("season", IntegerType(), True),
         StructField("round", IntegerType(), True),
         StructField("raceName", StringType(), True),
-        StructField("Circuit", StructType([
-            StructField("circuitId", StringType(), True),
-            StructField("url", StringType(), True),
-            StructField("circuitName", StringType(), True),
-            StructField("Location", StructType([
-                StructField("lat", FloatType(), True),
-                StructField("long", FloatType(), True),
-                StructField("locality", StringType(), True),
-                StructField("country", StringType(), True)
-            ]), True)
-        ]), True),
+        StructField("Circuit", circuit_schema, True),
         StructField("date", TimestampType(), True),
         StructField("time", TimestampType(), True),
+        StructField("race_id", StringType(), True),
+        StructField("source", StringType(), True)
     ])
 
     """
@@ -113,6 +138,7 @@ class F1Schemas:
         StructField("Constructor", StringType(), True),
         StructField("Engine_Manufacturer", StringType(), True),
         StructField("Best_Result", StringType(), True),
+        StructField("Source", StringType(), True)
     ])
 
     #Schema for Car data
@@ -120,6 +146,7 @@ class F1Schemas:
         StructField("Constructor", StringType(), True),
         StructField("Chassis", StringType(), True),
         StructField("Engine", StringType(), True),
+        StructField("Source", StringType(), True)
     ])
 
     #Schema for Engine Supplier data
@@ -127,6 +154,7 @@ class F1Schemas:
         StructField("Engine_Manufacturer", StringType(), True),
         StructField("Nation", StringType(), True),
         StructField("Started_time", StringType(), True),
+        StructField("Source", StringType(), True)
     ])
 
     #Schema for Constructor data
@@ -134,10 +162,12 @@ class F1Schemas:
         StructField("Constructor", StringType(), True),
         StructField("Nation", StringType(), True),
         StructField("Started_time", StringType(), True),
+        StructField("Source", StringType(), True)
     ])
 
     #Schema for Race Result data
     result_statsf1_schema = StructType([
+        StructField("Race_id", StringType(), True),
         StructField("Position", IntegerType(), True),
         StructField("Driver_number", StringType(), True),
         StructField("Driver", StringType(), True),
@@ -145,4 +175,5 @@ class F1Schemas:
         StructField("Engine_manufacturer", StringType(), True),
         StructField("Total_lap", IntegerType(), True),
         StructField("Race_time", StringType(), True),
+        StructField("Source", StringType(), True)
     ])

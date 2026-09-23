@@ -44,6 +44,7 @@ def test_extract_driver_detail_parses_driver_table(monkeypatch):
 		"Constructor": "Red Bull",
 		"Engine_Manufacturer": "Honda",
 		"Best_Result": "1",
+		"Source": "Stats_F1",
 	}]
 	get.assert_called_once_with(
 		"https://www.statsf1.com/en/2024/pilotes.aspx",
@@ -66,6 +67,7 @@ def test_extract_car_detail_parses_and_normalizes_car_table(monkeypatch):
 		"Constructor": "Renault",
 		"Chassis": "Renault Alpine A524",
 		"Engine": "Renault",
+		"Source": "Stats_F1",
 	}]
 
 
@@ -82,6 +84,7 @@ def test_extract_constructor_nation_parses_sort_keys(monkeypatch):
 		"Constructor": "Ferrari",
 		"Nation": "ITA",
 		"Started_time": "1950",
+		"Source": "Stats_F1",
 	}]
 
 
@@ -113,6 +116,7 @@ def test_extract_detail_gp_information_uses_circuit_slug_and_parses_result(monke
 	monkeypatch.setattr(scraper_module.requests, "get", get)
 
 	assert client.extract_detail_GP_information(2024, 1) == [{
+		"Race_id": "2024_1",
 		"Position": "1",
 		"Driver_number": "1",
 		"Driver": "Max Verstappen",
@@ -120,6 +124,7 @@ def test_extract_detail_gp_information_uses_circuit_slug_and_parses_result(monke
 		"Engine_manufacturer": "Honda",
 		"Total_lap": "70",
 		"Race_time": "1:30:00",
+		"Source": "Stats_F1",
 	}]
 	get.assert_called_once_with(
 		"https://www.statsf1.com/en/2024/monaco/classement.aspx",

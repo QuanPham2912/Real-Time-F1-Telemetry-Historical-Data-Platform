@@ -17,6 +17,7 @@ class StatsF1(Extractor):
                     " like Gecko) Chrome/120.0.0.0 Safari/537.36"
                 )
             }
+        self.source_name = "Stats_F1"
 
     def extract_driver_detail(self, season :int):
         result = []
@@ -38,7 +39,8 @@ class StatsF1(Extractor):
                 "Driver" : Driver,
                 "Constructor" : Constructor,
                 "Engine_Manufacturer" : Engine,
-                "Best_Result" : Best_Result
+                "Best_Result" : Best_Result,
+                "Source" : self.source_name
             })
         return result
 
@@ -60,7 +62,8 @@ class StatsF1(Extractor):
                 # tối thêm constructor vào nữa ko có mỗi chassis với engine thì bt đâu mà lần 
                 "Constructor" : Constructor,
                 "Chassis" : Chassis,
-                "Engine" : Engine
+                "Engine" : Engine,
+                "Source" : self.source_name
             })
         return result
 
@@ -80,7 +83,8 @@ class StatsF1(Extractor):
             result.append({
                 "Engine_Manufacturer" : Engine_Manufacturer,
                 "Nation" : Nation,
-                "Started_time" : Started_time
+                "Started_time" : Started_time,
+                "Source" : self.source_name
             })
         return result
 
@@ -100,7 +104,8 @@ class StatsF1(Extractor):
             result.append({
                 "Constructor" : Constructor,
                 "Nation" : Nation,
-                "Started_time" : Strated_time
+                "Started_time" : Strated_time,
+                "Source" : self.source_name
             })
         return result
     
@@ -158,13 +163,15 @@ class StatsF1(Extractor):
             Total_lap = col[5].text
             Race_time = unicodedata.normalize("NFKD", col[6].text).strip()
             result.append({
+                "Race_id" : f"{season}_{round}",
                 "Position" : Position,
                 "Driver_number" : Driver_number,
                 "Driver" : Driver,
                 "Chassis" : Chassis,
                 "Engine_manufacturer" : Engine_manufacturer,
                 "Total_lap" : Total_lap,
-                "Race_time" : Race_time
+                "Race_time" : Race_time,
+                "Source" : self.source_name
             })
 
         return result
