@@ -19,6 +19,7 @@ class JolicaClient(Extractor):
         for result in results:
             result["race_id"] = race_id
             result["source"] = self.source_name
+            result["season"] = season
         return results
     def extract_driver(self, season :int):
         URL = f"{self.baseURL}/{season}/drivers.json"

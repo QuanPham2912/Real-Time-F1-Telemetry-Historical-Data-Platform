@@ -21,7 +21,12 @@ def test_extract_result_requests_and_returns_results(monkeypatch):
 
 	result = JolicaClient().extract_result(2024, 3)
 
-	assert result == [{"position": "1", "race_id": "2024_3", "source": "jolpica_api"}]
+	assert result == [{
+		"position": "1",
+		"race_id": "2024_3",
+		"source": "jolpica_api",
+		"season": 2024,
+	}]
 	get.assert_called_once_with(
 		"https://api.jolpi.ca/ergast/f1/2024/3/results.json", timeout=10
 	)

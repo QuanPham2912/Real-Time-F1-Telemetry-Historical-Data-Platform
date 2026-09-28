@@ -40,7 +40,8 @@ class StatsF1(Extractor):
                 "Constructor" : Constructor,
                 "Engine_Manufacturer" : Engine,
                 "Best_Result" : Best_Result,
-                "Source" : self.source_name
+                "Source" : self.source_name,
+                "Season" : season
             })
         return result
 
@@ -63,7 +64,8 @@ class StatsF1(Extractor):
                 "Constructor" : Constructor,
                 "Chassis" : Chassis,
                 "Engine" : Engine,
-                "Source" : self.source_name
+                "Source" : self.source_name,
+                "season" : season
             })
         return result
 

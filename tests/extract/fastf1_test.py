@@ -146,7 +146,7 @@ class TestExtractWeatherData:
         assert result[0]['AirTemp'] == 20.5
         assert result[0]['Pressure'] == 1013
     
-    @patch('src.extract.fastf1_extractor.fastf1.Cache.enable_cache')
+    @patch('extract.fastf1_extractor.fastf1.Cache.enable_cache')
     def test_extract_weather_data_empty_raises_error(self, mock_cache):
         """Test that extraction with empty weather data raises KeyError"""
         mock_session = MagicMock()
@@ -160,7 +160,7 @@ class TestExtractWeatherData:
 class TestExtractTelemetryStream:
     """Test extract_telemetry_stream method"""
     
-    @patch('src.extract.fastf1_extractor.fastf1.Cache.enable_cache')
+    @patch('extract.fastf1_extractor.fastf1.Cache.enable_cache')
     def test_extract_telemetry_stream_success(self, mock_cache):
         """Test successful telemetry stream extraction"""
         mock_session = MagicMock()
@@ -201,7 +201,7 @@ class TestExtractTelemetryStream:
         assert result[0]['PermanentNumber'] == '1'
         assert result[0]['Speed'] == 200
     
-    @patch('src.extract.fastf1_extractor.fastf1.Cache.enable_cache')
+    @patch('extract.fastf1_extractor.fastf1.Cache.enable_cache')
     def test_extract_telemetry_stream_empty_driver_lap(self, mock_cache):
         """Test telemetry extraction when driver lap is empty"""
         mock_session = MagicMock()
