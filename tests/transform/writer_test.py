@@ -13,6 +13,14 @@ def build_stream_writer():
 	return stream_writer
 
 
+def build_batch_writer():
+	batch_writer = Mock()
+	batch_writer.format.return_value = batch_writer
+	batch_writer.mode.return_value = batch_writer
+	batch_writer.partitionBy.return_value = batch_writer
+	return batch_writer
+
+
 def test_write_to_delta_uses_default_output_mode_without_partitions(monkeypatch):
 	stream_writer = build_stream_writer()
 	dataframe = Mock()
@@ -61,4 +69,46 @@ def test_write_to_delta_applies_custom_mode_and_partitions(monkeypatch):
 		call.option("checkpointLocation", "/data/checkpoints"),
 		call.partitionBy("season", "driver"),
 		call.start("/data/delta"),
+	]
+
+
+def test_batch_write_to_delta_uses_default_mode_without_partitions(monkeypatch):
+	batch_writer = build_batch_writer()
+	dataframe = Mock()
+	dataframe.write = batch_writer
+	logger = Mock()
+	monkeypatch.setattr(writer_module, "logger", logger)
+
+	result = writer_module.DeltaBatchWriter.write_to_delta(dataframe, "/data/delta")
+
+	assert result is None
+	logger.info.assert_called_once_with(
+		"Starting Delta Batch Writer to path '/data/delta'."
+	)
+	assert batch_writer.method_calls == [
+		call.format("delta"),
+		call.mode("append"),
+		call.save("/data/delta"),
+	]
+	batch_writer.partitionBy.assert_not_called()
+
+
+def test_batch_write_to_delta_applies_custom_mode_and_partitions(monkeypatch):
+	batch_writer = build_batch_writer()
+	dataframe = Mock()
+	dataframe.write = batch_writer
+	monkeypatch.setattr(writer_module, "logger", Mock())
+
+	writer_module.DeltaBatchWriter.write_to_delta(
+		dataframe,
+		"/data/delta",
+		outputMode="overwrite",
+		partitionCols=["season", "driver"],
+	)
+
+	assert batch_writer.method_calls == [
+		call.format("delta"),
+		call.mode("overwrite"),
+		call.partitionBy("season", "driver"),
+		call.save("/data/delta"),
 	]
