@@ -30,7 +30,7 @@ class DeltaBatchWriter:
                         deltaPath: str,
                         outputMode: str = "append",
                         partitionCols: list[str] | None = None):
-        logger.info(f"Starting Delta Batch Writer to path '{deltaPath}.")
+        logger.info(f"Starting Delta Batch Writer to path '{deltaPath}'.")
     
         writer = df.write \
             .format("delta") \
