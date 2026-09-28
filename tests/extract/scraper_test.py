@@ -45,6 +45,7 @@ def test_extract_driver_detail_parses_driver_table(monkeypatch):
 		"Engine_Manufacturer": "Honda",
 		"Best_Result": "1",
 		"Source": "Stats_F1",
+		"Season": 2024,
 	}]
 	get.assert_called_once_with(
 		"https://www.statsf1.com/en/2024/pilotes.aspx",
@@ -68,6 +69,7 @@ def test_extract_car_detail_parses_and_normalizes_car_table(monkeypatch):
 		"Chassis": "Renault Alpine A524",
 		"Engine": "Renault",
 		"Source": "Stats_F1",
+		"season": 2024,
 	}]
 
 
