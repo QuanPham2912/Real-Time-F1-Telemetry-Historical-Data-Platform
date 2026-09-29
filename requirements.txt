@@ -5,5 +5,7 @@ Unidecode
 pytest
 pandas
 fastf1
+rapidfuzz
 kafka-python
 pyspark
+pyarrow
