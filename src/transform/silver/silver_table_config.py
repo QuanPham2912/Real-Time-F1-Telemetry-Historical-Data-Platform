@@ -2,7 +2,8 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict, Callable
 from pyspark.sql.types import StructType
 from pyspark.sql import DataFrame
-from transform.schema_migrator import sql, DerivedLogic
+from transform.silver.schema_migrator import sql, DerivedLogic
+from enum import Enum
 from pyspark.sql.types import (
     BooleanType,
     FloatType,
@@ -15,31 +16,37 @@ from pyspark.sql.types import (
 
 from metadata.f1_topic import F1Topic
 from metadata.IngestionMode import DataIngestionType
-from transform.schemas import F1Schemas
+from transform.common.schemas import F1Schemas
+
+class WriteStrategy(str, Enum):
+    APPEND = "append"
+    MERGE = "merge"
+    DYNAMIC_OVERWRITE = "dynamic_overwrite"
+
+
+    def __str__(self):
+        return self.value
+
+@dataclass(kw_only=True)
+class Base:
+    table_name : str
+    ingestion_type : str
+    primary_keys : List[str]
+    write_strategy : str
+    column_mapping : Optional[Dict[str,str]] = None
+    partition_cols : Optional[List[str]] = None
+    time_column : str = "silver_load_time"
 
 @dataclass
-class BaseIngestionConfig:
-    table_name : str
+class BaseIngestionConfig(Base):
     source_topic : str
-    ingestion_type : str
     schema : StructType
-    primary_keys : List[str]
-    column_mapping : Optional[Dict[str,str]] = None
     computed_columns : Optional[Dict[str,str]] = None
-    partition_cols : Optional[List[str]] = None
-    time_column : str = "kafka_timestamp"
-
 @dataclass
-class DerivedTableConfig:
-    table_name : str
+class DerivedTableConfig(Base):
     source_table : Dict[str,StructType]
-    ingestion_type : str
     transformation_fn: Callable[..., DataFrame]
-    primary_keys : List[str]
     silver_source_table : Optional[Dict[str,StructType]] = None
-    column_mapping : Optional[Dict[str,str]] = None
-    partition_cols : Optional[List[str]] = None
-    time_column : str = "kafka_timestamp"
 
 BASE_TABLE_CONFIGS = {
     #Config for base table
@@ -49,6 +56,7 @@ BASE_TABLE_CONFIGS = {
         source_topic = F1Topic.FASTF1_TELEMETRY,
         ingestion_type = DataIngestionType.STREAMING_INGESTION,
         schema = F1Schemas.telemetry_schema,
+        write_strategy = WriteStrategy.APPEND, #data will not change in the future
         column_mapping={
             "PermanentNumber" : "permanent_number",
             "Date" : "event_time",
@@ -67,6 +75,7 @@ BASE_TABLE_CONFIGS = {
         source_topic = F1Topic.FASTF1_WEATHER,
         ingestion_type = DataIngestionType.STREAMING_INGESTION,
         schema = F1Schemas.weather_schema,
+        write_strategy = WriteStrategy.APPEND,  #data will not change in the future
         column_mapping={
             "AirTemp" : "air_temp",
             "TrackTemp" : "track_temp",
@@ -85,6 +94,7 @@ BASE_TABLE_CONFIGS = {
         source_topic = F1Topic.FASTF1_LAP,
         ingestion_type = DataIngestionType.STREAMING_INGESTION,
         schema = F1Schemas.lap_schema,
+        write_strategy = WriteStrategy.MERGE, #Data can be change, exp a lap can be cancel because of track limit ..., in the middle of the race
         column_mapping = {
             "Driver" : "driver_tla",
             "LapNumber" : "lap_number",
@@ -115,6 +125,7 @@ BASE_TABLE_CONFIGS = {
         source_topic = F1Topic.JOLPICA_DRIVER,
         ingestion_type = DataIngestionType.BATCH_INGESTION,
         schema = F1Schemas.driver_schema,
+        write_strategy = WriteStrategy.MERGE,
         column_mapping = {
             "driverId" : "driver_id",
             "permanentNumber" : "permanent_number",
@@ -130,6 +141,7 @@ BASE_TABLE_CONFIGS = {
         source_topic = F1Topic.JOLPICA_CONSTRUCTOR,
         ingestion_type = DataIngestionType.BATCH_INGESTION,
         schema = F1Schemas.constructor_schema,
+        write_strategy = WriteStrategy.MERGE,
         column_mapping = {
             "constructorId" : "constructor_id"
         },
@@ -140,6 +152,7 @@ BASE_TABLE_CONFIGS = {
         source_topic = F1Topic.STATSF1_DRIVER_STATSF1,
         ingestion_type = DataIngestionType.BATCH_INGESTION,
         schema = F1Schemas.driver_statsf1_schema,
+        write_strategy = WriteStrategy.MERGE,
         column_mapping={
             "Driver" : "driver_name",
             "Constructor" : "constructor_name"
@@ -151,6 +164,7 @@ BASE_TABLE_CONFIGS = {
         source_topic = F1Topic.STATSF1_ENGINE_SUPPLIER_STATSF1,
         ingestion_type = DataIngestionType.BATCH_INGESTION,
         schema = F1Schemas.engine_supplier_statsf1_schema,
+        write_strategy = WriteStrategy.MERGE,
         primary_keys = ["engine_manufacturer"]
     ),
     "DIM_CAR_STATSF1" : BaseIngestionConfig(
@@ -158,6 +172,7 @@ BASE_TABLE_CONFIGS = {
         source_topic = F1Topic.STATSF1_CAR_STATSF1,
         ingestion_type = DataIngestionType.BATCH_INGESTION,
         schema = F1Schemas.car_statsf1_schema,
+        write_strategy = WriteStrategy.MERGE,
         column_mapping = {
             "Constructor" : "constructor_name",
         },
@@ -168,6 +183,7 @@ BASE_TABLE_CONFIGS = {
         source_topic = F1Topic.STATSF1_CONSTRUCTOR_STATSF1,
         ingestion_type = DataIngestionType.BATCH_INGESTION,
         schema = F1Schemas.constructor_statsf1_schema,
+        write_strategy = WriteStrategy.MERGE,
         column_mapping = {
             "Constructor" : "constructor_name"
         },
@@ -181,6 +197,7 @@ DERIVED_TABLE_CONFIGS = {
         table_name = "FACT_RESULTS_STATSF1",
         source_table = {F1Topic.STATSF1_RACE_RESULT : F1Schemas.result_statsf1_schema},
         ingestion_type = DataIngestionType.BATCH_INGESTION,
+        write_strategy = WriteStrategy.DYNAMIC_OVERWRITE,
         column_mapping = {
             "Driver_number" : "permanent_number",
             "Driver" : "driver_name"
@@ -192,6 +209,7 @@ DERIVED_TABLE_CONFIGS = {
         table_name = "DIM_CIRCUIT",
         source_table = {F1Topic.JOLPICA_RACE : F1Schemas.race_schema},
         ingestion_type = DataIngestionType.BATCH_INGESTION,
+        write_strategy = WriteStrategy.MERGE,
         column_mapping = {
             "circuitId" : "circuit_id",
             "circuitName" : "circuit_name"
@@ -203,6 +221,7 @@ DERIVED_TABLE_CONFIGS = {
         table_name = "DIM_RACE",
         source_table = {F1Topic.JOLPICA_RACE : F1Schemas.race_schema},
         ingestion_type = DataIngestionType.BATCH_INGESTION,
+        write_strategy = WriteStrategy.DYNAMIC_OVERWRITE,
         column_mapping = {
             "circuitId" : "circuit_id",
             "raceName" : "race_name"
@@ -214,6 +233,7 @@ DERIVED_TABLE_CONFIGS = {
         table_name = "DIM_SESSION",
         source_table = {F1Topic.JOLPICA_RACE : F1Schemas.race_schema},
         ingestion_type = DataIngestionType.BATCH_INGESTION,
+        write_strategy = WriteStrategy.DYNAMIC_OVERWRITE,
         transformation_fn = DerivedLogic.transform_dim_session,
         primary_keys = ["session_id", "race_id"]
     ),
@@ -221,6 +241,7 @@ DERIVED_TABLE_CONFIGS = {
         table_name = "FACT_RESULT",
         source_table = {F1Topic.JOLPICA_RACE_RESULT : F1Schemas.result_schema},
         ingestion_type = DataIngestionType.BATCH_INGESTION,
+        write_strategy = WriteStrategy.DYNAMIC_OVERWRITE,
         column_mapping = {
             "number" : "permanent_number"
         },
@@ -232,6 +253,7 @@ DERIVED_TABLE_CONFIGS = {
         source_table = {F1Topic.JOLPICA_CONSTRUCTOR : F1Schemas.constructor_schema,
                         F1Topic.STATSF1_CONSTRUCTOR_STATSF1 : F1Schemas.constructor_statsf1_schema},
         ingestion_type = DataIngestionType.BATCH_INGESTION,
+        write_strategy = WriteStrategy.MERGE,
         transformation_fn = DerivedLogic.transform_xwalk_constructor,
         primary_keys = ["source", "source_native_key"]
     ),
@@ -240,6 +262,7 @@ DERIVED_TABLE_CONFIGS = {
         source_table = {F1Topic.JOLPICA_RACE_RESULT : F1Schemas.result_schema,
                         F1Topic.STATSF1_DRIVER_STATSF1 : F1Schemas.driver_statsf1_schema},
         ingestion_type = DataIngestionType.BATCH_INGESTION,
+        write_strategy = WriteStrategy.MERGE,
         silver_source_table = {"XWALK_CONSTRUCTOR" : StructType([
             StructField("source", StringType(), True),
             StructField("source_native_key", StringType(), True),

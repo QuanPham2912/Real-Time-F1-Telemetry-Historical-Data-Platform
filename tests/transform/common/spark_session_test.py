@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-import transform.spark_session as spark_module
+import transform.common.spark_session as spark_module
 
 
 class FakeBuilder:
@@ -49,7 +49,7 @@ def test_get_session_uses_default_values_and_builds_session(monkeypatch):
             "config",
             "spark.jars.packages",
             "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,"
-            "io.delta:delta-spark_2.12:3.1.0,"
+            "io.delta:delta-spark_2.12:3.2.0,"
             "org.apache.hadoop:hadoop-aws:3.3.4,"
             "com.amazonaws:aws-java-sdk-bundle:1.12.262",
         ),

@@ -2,7 +2,7 @@ from pyspark.sql import DataFrame
 from pyspark.sql.functions import col, lit, current_timestamp, to_date
 from metadata.logger import ETLLogger
 from metadata import f1_topic
-from transform.writer import DeltaStreamWriter
+from transform.common.writer import DeltaStreamWriter
 import posixpath #To connect the path to delta lake
 
 logger = ETLLogger.get_logger()

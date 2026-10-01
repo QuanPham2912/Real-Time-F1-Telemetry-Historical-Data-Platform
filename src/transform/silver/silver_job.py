@@ -2,8 +2,8 @@ import posixpath
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import col, from_json, expr, current_timestamp, lit
 from metadata.logger import ETLLogger
-from transform.silver_table_config import BaseIngestionConfig, BASE_TABLE_CONFIGS, DerivedTableConfig, DERIVED_TABLE_CONFIGS
-from transform.writer import DeltaStreamWriter, DeltaBatchWriter
+from transform.silver.silver_table_config import BaseIngestionConfig, BASE_TABLE_CONFIGS, DerivedTableConfig, DERIVED_TABLE_CONFIGS
+from transform.common.writer import DeltaWriterEngine
 from metadata.IngestionMode import DataIngestionType
 from typing import Dict, Any, Union
 from pyspark.sql.types import StructType
@@ -67,19 +67,17 @@ class silverJob:
                     flattened_df = flattened_df.withColumn(col_name, expr(sql_expr))
 
         #Deduplicate
-        flattened_df = flattened_df.dropDuplicates(config.primary_keys)
+        if config.ingestion_type == DataIngestionType.BATCH_INGESTION:
+            flattened_df = flattened_df.dropDuplicates(config.primary_keys)
+        elif config.ingestion_type == DataIngestionType.STREAMING_INGESTION:
+            flattened_df = flattened_df.withWatermark(config.time_column, "30 minutes")\
+                                        .dropDuplicates(config.primary_keys)
 
         logger.info(f"Writing to silver layer at path '{silver_path}' with checkpoint at '{checkpoint_path}'.")
 
-        if config.ingestion_type == DataIngestionType.STREAMING_INGESTION:
-            return DeltaStreamWriter.write_to_delta(df = flattened_df,
-                                                    deltaPath = silver_path,
-                                                    checkPointPath = checkpoint_path,
-                                                    partitionCols = config.partition_cols)
-        elif config.ingestion_type == DataIngestionType.BATCH_INGESTION:
-            return DeltaBatchWriter.write_to_delta(df = flattened_df,
-                                                   deltaPath = silver_path,
-                                                   partitionCols = config.partition_cols)
+        DeltaWriterEngine.silver_writer(df = flattened_df,
+                                      spark = self.sparkSession,
+                                      config = config)
 
     def process_derived_table(self, config: DerivedTableConfig):
         silver_path = posixpath.join(self.silverBasePath, config.table_name)
@@ -112,19 +110,15 @@ class silverJob:
 
         transformed_df = self.apply_transformation(transformed_df, config)
 
-        transformed_df = transformed_df.dropDuplicates(config.primary_keys)
-
-        transformed_df = transformed_df.withColumn("silver_load_time", current_timestamp())
+        if config.ingestion_type == DataIngestionType.BATCH_INGESTION:
+            transformed_df = transformed_df.dropDuplicates(config.primary_keys)
+        elif config.ingestion_type == DataIngestionType.STREAMING_INGESTION:
+            transformed_df = transformed_df.withWatermark(config.time_column, "30 minutes")\
+                                            .dropDuplicates(config.primary_keys)
 
         logger.info(f"Writing to silver layer at path '{silver_path}' with checkpoint at '{checkpoint_path}'.")
-        if config.ingestion_type == DataIngestionType.STREAMING_INGESTION:
-            return DeltaStreamWriter.write_to_delta(df = transformed_df,
-                                                    deltaPath = silver_path,
-                                                    checkPointPath = checkpoint_path,
-                                                    partitionCols = config.partition_cols)
-        elif config.ingestion_type == DataIngestionType.BATCH_INGESTION:
-            return DeltaBatchWriter.write_to_delta(df = transformed_df,
-                                                   deltaPath = silver_path,
-                                                   partitionCols = config.partition_cols)
+        DeltaWriterEngine.silver_writer(df = transformed_df,
+                                      spark = self.sparkSession,
+                                      config = config)
 
         

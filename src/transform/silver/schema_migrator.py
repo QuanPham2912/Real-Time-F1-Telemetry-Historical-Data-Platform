@@ -1,6 +1,6 @@
 from metadata.f1_topic import F1Topic
 from pyspark.sql import DataFrame
-from pyspark.sql.functions import lower, trim, regexp_replace, pandas_udf, concat, concat_ws, to_timestamp, lit, create_map, coalesce, regexp_extract, col, when, min as _min, max as _max, expr
+from pyspark.sql.functions import current_timestamp, lower, trim, regexp_replace, pandas_udf, concat, concat_ws, to_timestamp, lit, create_map, coalesce, regexp_extract, col, when, min as _min, max as _max, expr
 from pyspark.sql.window import Window
 from pyspark.sql import Column
 from metadata.f1_result_status import F1ResultStatus
@@ -54,7 +54,8 @@ class DerivedLogic:
             when(col("Position").rlike("^[0-9]+$"), F1ResultStatus.FINISHED).otherwise(
                 when(mapping_expr[lower(col("Position"))].isNotNull(), mapping_expr[lower(col("Position"))]).otherwise(expr("upper(Position)"))
             ).alias("Status"),
-            when((~col("Position").rlike("^[0-9]+$")) & (col("Race_time").isNotNull()), col("Race_time")).otherwise(None).alias("Description")
+            when((~col("Position").rlike("^[0-9]+$")) & (col("Race_time").isNotNull()), col("Race_time")).otherwise(None).alias("Description"),
+            current_timestamp().alias("silver_load_time")
         )
 
         return result_df
@@ -66,7 +67,8 @@ class DerivedLogic:
             col("Circuit.circuitId"),
             col("Circuit.circuitName"),
             col("Circuit.Location.*"),
-            col("source")
+            col("source"),
+            current_timestamp().alias("silver_load_time")
         )
 
         return result_df
@@ -84,7 +86,8 @@ class DerivedLogic:
                 concat_ws("T", col("date"), col("time")),
                 "yyyy-MM-dd'T'HH:mm:ss'Z'",
             ).alias("date"),
-            col("source")
+            col("source"),
+            current_timestamp().alias("silver_load_time")
         )
 
         return result_df
@@ -99,7 +102,8 @@ class DerivedLogic:
             lit("R").alias("session_type"),
             # if adding more session type the data need to concern to that type of session
             to_timestamp(concat_ws("T",  col("date"), col("time")),"yyyy-MM-dd'T'HH:mm:ss'Z'").alias("date"),
-            col("source")
+            col("source"),
+            current_timestamp().alias("silver_load_time")
         )
 
         return result_df
@@ -122,7 +126,8 @@ class DerivedLogic:
             col("FastestLap.lap"),
             col("FastestLap.Time.time").alias("fastest_time"),
             col("FastestLap.AverageSpeed.*"),
-            col("source")
+            col("source"),
+            current_timestamp().alias("silver_load_time")
         )
 
         return result_df
@@ -169,7 +174,8 @@ class DerivedLogic:
         return matched_df.select(
             col("source"),
             col("Constructor").alias("source_native_key"),
-            col("match_result.*")
+            col("match_result.*"),
+            current_timestamp().alias("silver_load_time")
         )
 
 
@@ -252,7 +258,8 @@ class DerivedLogic:
         return matched_df.select(
             col("Source"),
             col("Driver").alias("source_native_key"),
-            col("match_result.*")
+            col("match_result.*"),
+            current_timestamp().alias("silver_load_time")
         )
 
 

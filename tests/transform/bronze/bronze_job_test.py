@@ -1,6 +1,14 @@
-from unittest.mock import Mock, call
+from unittest.mock import Mock, call, patch
+import sys
+from types import ModuleType
 
-import transform.bronze_job as bronze_module
+delta_package = ModuleType("delta")
+delta_package.__path__ = []
+delta_tables = ModuleType("delta.tables")
+delta_tables.DeltaTable = Mock()
+with patch.dict(sys.modules, {"delta": delta_package, "delta.tables": delta_tables}):
+	import transform.bronze.bronze_job as bronze_module
+
 from metadata.f1_topic import F1Topic
 
 
@@ -18,13 +26,13 @@ def test_read_from_kafka_configures_stream_source():
 	spark_session.readStream = reader
 	job = bronze_module.BronzeJob(spark_session, bootstrapServer="kafka:29092")
 
-	result = job.read_from_kafka(F1Topic.STREAM_TELEMETRY)
+	result = job.read_from_kafka(F1Topic.FASTF1_TELEMETRY)
 
 	assert result == "kafka-dataframe"
 	assert reader.method_calls == [
 		call.format("kafka"),
 		call.option("kafka.bootstrap.servers", "kafka:29092"),
-		call.option("subscribe", F1Topic.STREAM_TELEMETRY.value),
+			call.option("subscribe", F1Topic.FASTF1_TELEMETRY.value),
 		call.option("startingOffsets", "earliest"),
 		call.load(),
 	]
@@ -53,7 +61,7 @@ def test_add_bronze_metadata_selects_expected_columns(monkeypatch):
 	topic.alias.return_value = "topic_column"
 	job = bronze_module.BronzeJob(Mock())
 
-	result = job.add_bronze_metadata(dataframe, F1Topic.FACT_LAP)
+	result = job.add_bronze_metadata(dataframe, F1Topic.FASTF1_LAP)
 
 	assert result == "bronze-dataframe"
 	assert dataframe.select.call_args.args == (
@@ -69,7 +77,7 @@ def test_add_bronze_metadata_selects_expected_columns(monkeypatch):
 		call("value"),
 		call("timestamp"),
 	]
-	bronze_module.lit.assert_called_once_with(F1Topic.FACT_LAP.value)
+	bronze_module.lit.assert_called_once_with(F1Topic.FASTF1_LAP.value)
 
 
 def test_write_to_bronze_builds_paths_and_delegates_to_delta_writer(monkeypatch):
@@ -86,18 +94,18 @@ def test_write_to_bronze_builds_paths_and_delegates_to_delta_writer(monkeypatch)
 	monkeypatch.setattr(bronze_module.DeltaStreamWriter, "write_to_delta", delta_writer)
 	monkeypatch.setattr(bronze_module, "logger", logger)
 
-	result = job.write_to_bronze(F1Topic.STREAM_WEATHER)
+	result = job.write_to_bronze(F1Topic.FASTF1_WEATHER)
 
 	assert result == "streaming-query"
-	read_from_kafka.assert_called_once_with(F1Topic.STREAM_WEATHER)
-	add_bronze_metadata.assert_called_once_with(raw_dataframe, F1Topic.STREAM_WEATHER)
+	read_from_kafka.assert_called_once_with(F1Topic.FASTF1_WEATHER)
+	add_bronze_metadata.assert_called_once_with(raw_dataframe, F1Topic.FASTF1_WEATHER)
 	delta_writer.assert_called_once_with(
 		bronze_dataframe,
-		"s3a://f1-bronze/f1.stream.weather",
-		"s3a://f1-bronze/checkpoints/f1.stream.weather",
+		"s3a://f1-bronze/f1.fastf1.stream.weather",
+		"s3a://f1-bronze/checkpoints/f1.fastf1.stream.weather",
 		partitionCols=["ingest_date"],
 	)
 	logger.info.assert_called_once_with(
-		"Writing to bronze layer at path 's3a://f1-bronze/f1.stream.weather' "
-		"with checkpoint at 's3a://f1-bronze/checkpoints/f1.stream.weather'."
+		"Writing to bronze layer at path 's3a://f1-bronze/f1.fastf1.stream.weather' "
+		"with checkpoint at 's3a://f1-bronze/checkpoints/f1.fastf1.stream.weather'."
 	)

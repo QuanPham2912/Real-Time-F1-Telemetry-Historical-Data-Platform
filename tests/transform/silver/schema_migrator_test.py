@@ -16,8 +16,8 @@ from pyspark.sql.types import (
 )
 
 from metadata.f1_topic import F1Topic
-import transform.schema_migrator as schema_migrator_module
-from transform.schema_migrator import DerivedLogic
+import transform.silver.schema_migrator as schema_migrator_module
+from transform.silver.schema_migrator import DerivedLogic
 
 
 @pytest.fixture(scope="module")
