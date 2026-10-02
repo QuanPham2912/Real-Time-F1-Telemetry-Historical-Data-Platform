@@ -34,6 +34,36 @@ def build_delta_table():
 	return delta_table
 
 
+def stub_latest_record_window(monkeypatch, batch_df):
+	window = Mock()
+	window_spec = Mock()
+	window.partitionBy.return_value.orderBy.return_value = window_spec
+	window_api = Mock()
+	window_api.partitionBy.return_value = window
+	timestamp_column = Mock()
+	timestamp_column.desc.return_value = "descending-timestamp"
+	rank_expression = Mock()
+	rank_expression.over.return_value = "rank-expression"
+	ranked_df = Mock(name="ranked_df")
+	filtered_df = Mock(name="filtered_df")
+	latest_df = Mock(name="latest_df")
+	batch_df.withColumn.return_value = ranked_df
+	ranked_df.filter.return_value = filtered_df
+	filtered_df.drop.return_value = latest_df
+	monkeypatch.setattr(writer_module, "Window", window_api)
+	monkeypatch.setattr(writer_module, "col", Mock(return_value=timestamp_column))
+	monkeypatch.setattr(writer_module, "row_number", Mock(return_value=rank_expression))
+	return {
+		"window": window,
+		"window_api": window_api,
+		"timestamp_column": timestamp_column,
+		"rank_expression": rank_expression,
+		"ranked_df": ranked_df,
+		"filtered_df": filtered_df,
+		"latest_df": latest_df,
+	}
+
+
 def test_write_to_delta_uses_default_output_mode_without_partitions(monkeypatch):
 	stream_writer = build_stream_writer()
 	dataframe = Mock()
@@ -156,13 +186,23 @@ def test_stream_merge_upserts_nonempty_batches_and_skips_empty_batches(monkeypat
 	)
 	batch_df = Mock()
 	batch_df.isEmpty.return_value = False
+	callback = callbacks["batch"]
+	latest_record = stub_latest_record_window(monkeypatch, batch_df)
 	callbacks["batch"](batch_df, 1)
 	empty_batch = Mock()
 	empty_batch.isEmpty.return_value = True
 	callbacks["batch"](empty_batch, 2)
 
 	assert result == "streaming-query"
-	callback = callbacks["batch"]
+	latest_record["window_api"].partitionBy.assert_called_once_with("event_id")
+	latest_record["window"].orderBy.assert_called_once_with("descending-timestamp")
+	latest_record["timestamp_column"].desc.assert_called_once_with()
+	latest_record["rank_expression"].over.assert_called_once_with(
+		latest_record["window"].orderBy.return_value
+	)
+	batch_df.withColumn.assert_called_once_with("_rn", "rank-expression")
+	latest_record["ranked_df"].filter.assert_called_once_with("_rn = 1")
+	latest_record["filtered_df"].drop.assert_called_once_with("_rn")
 	assert stream_writer.method_calls == [
 		call.foreachBatch(callback),
 		call.option("checkpointLocation", "/data/checkpoints"),
@@ -172,7 +212,7 @@ def test_stream_merge_upserts_nonempty_batches_and_skips_empty_batches(monkeypat
 		spark, "/data/delta"
 	)
 	delta_table.alias.return_value.merge.assert_called_once_with(
-		batch_df.alias.return_value,
+		latest_record["latest_df"].alias.return_value,
 		"target.event_id = source.event_id AND target.season = source.season",
 	)
 	writer_module.DeltaTable.forPath.assert_called_once()
@@ -206,10 +246,11 @@ def test_stream_merge_initializes_delta_path_when_table_does_not_exist(monkeypat
 		primaryKeys=["event_id"],
 		partitionColumns=["season"],
 	)
+	latest_record = stub_latest_record_window(monkeypatch, batch_df)
 	callbacks["batch"](batch_df, 1)
 
 	write_delta.assert_called_once_with(
-		df=batch_df,
+		df=latest_record["latest_df"],
 		deltaPath="/data/delta",
 		partitionCols=["season"],
 	)
@@ -267,8 +308,8 @@ def test_dynamic_partition_overwrite_sets_replace_condition(monkeypatch):
 	dataframe = Mock()
 	dataframe.write = batch_writer
 	dataframe.select.return_value.distinct.return_value.collect.return_value = [
-		{"season": 2024},
-		{"season": 2025},
+		{"race_id": 2024},
+		{"race_id": 2025},
 	]
 	batch_writer.option.return_value = batch_writer
 	monkeypatch.setattr(writer_module, "logger", Mock())
@@ -276,14 +317,38 @@ def test_dynamic_partition_overwrite_sets_replace_condition(monkeypatch):
 	writer_module.DeltaBatchWriter.dynamic_partition_overwrite(
 		dataframe,
 		"/data/delta",
+		replaceConditionCols=["race_id"],
 		partitionCols=["season"],
 	)
 
-	dataframe.select.assert_called_once_with("season")
+	dataframe.select.assert_called_once_with("race_id")
 	assert batch_writer.method_calls == [
 		call.format("delta"),
 		call.mode("overwrite"),
 		call.partitionBy("season"),
-		call.option("replaceWhere", "season IN (2024, 2025)"),
+		call.option("replaceWhere", "race_id IN (2024, 2025)"),
 		call.save("/data/delta"),
 	]
+
+
+def test_silver_writer_passes_replace_and_partition_columns(monkeypatch):
+	dataframe = Mock()
+	spark = Mock()
+	config = Mock(
+		ingestion_type="batch_ingestion",
+		write_strategy="dynamic_overwrite",
+		table_name="DIM_RACE",
+		replace_condition_cols=["race_id"],
+		partition_cols=["season"],
+	)
+	dynamic_overwrite = Mock()
+	monkeypatch.setattr(writer_module.DeltaBatchWriter, "dynamic_partition_overwrite", dynamic_overwrite)
+
+	writer_module.DeltaWriterEngine.silver_writer(dataframe, spark, config)
+
+	dynamic_overwrite.assert_called_once_with(
+		df=dataframe,
+		deltaPath="s3a://f1-silver/DIM_RACE",
+		replaceConditionCols=["race_id"],
+		partitionCols=["season"],
+	)

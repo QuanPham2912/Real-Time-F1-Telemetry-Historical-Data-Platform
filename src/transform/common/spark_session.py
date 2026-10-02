@@ -29,5 +29,7 @@ class F1SparkSession:
             .config("spark.hadoop.fs.s3a.secret.key", "minioadmin123")
             .config("spark.hadoop.fs.s3a.path.style.access", "true")
             .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+            #Time zone
+            .config("spark.sql.session.timeZone", "UTC")
             .getOrCreate()
         )
