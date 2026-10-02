@@ -12,6 +12,7 @@ from pyspark.sql.types import (
     StructField,
     StructType,
     TimestampType,
+    DateType
 )
 
 from metadata.f1_topic import F1Topic
@@ -35,7 +36,8 @@ class Base:
     write_strategy : str
     column_mapping : Optional[Dict[str,str]] = None
     partition_cols : Optional[List[str]] = None
-    time_column : str = "silver_load_time"
+    replace_condition_cols : Optional[List[str]] = None
+    time_column : str = "kafka_timestamp"
 
 @dataclass
 class BaseIngestionConfig(Base):
@@ -202,8 +204,9 @@ DERIVED_TABLE_CONFIGS = {
             "Driver_number" : "permanent_number",
             "Driver" : "driver_name"
         },
+        replace_condition_cols = ["race_id"],
         transformation_fn = DerivedLogic.transform_dim_race_result_statsf1,
-        primary_keys = ["race_id", "driver_number", "position"],
+        primary_keys = ["race_id"],
     ),
     "DIM_CIRCUIT" : DerivedTableConfig(
         table_name = "DIM_CIRCUIT",
@@ -222,6 +225,7 @@ DERIVED_TABLE_CONFIGS = {
         source_table = {F1Topic.JOLPICA_RACE : F1Schemas.race_schema},
         ingestion_type = DataIngestionType.BATCH_INGESTION,
         write_strategy = WriteStrategy.DYNAMIC_OVERWRITE,
+        replace_condition_cols = ["race_id"],
         column_mapping = {
             "circuitId" : "circuit_id",
             "raceName" : "race_name"
@@ -234,6 +238,7 @@ DERIVED_TABLE_CONFIGS = {
         source_table = {F1Topic.JOLPICA_RACE : F1Schemas.race_schema},
         ingestion_type = DataIngestionType.BATCH_INGESTION,
         write_strategy = WriteStrategy.DYNAMIC_OVERWRITE,
+        replace_condition_cols = ["session_id"],
         transformation_fn = DerivedLogic.transform_dim_session,
         primary_keys = ["session_id", "race_id"]
     ),
@@ -242,6 +247,7 @@ DERIVED_TABLE_CONFIGS = {
         source_table = {F1Topic.JOLPICA_RACE_RESULT : F1Schemas.result_schema},
         ingestion_type = DataIngestionType.BATCH_INGESTION,
         write_strategy = WriteStrategy.DYNAMIC_OVERWRITE,
+        replace_condition_cols = ["race_id"],
         column_mapping = {
             "number" : "permanent_number"
         },

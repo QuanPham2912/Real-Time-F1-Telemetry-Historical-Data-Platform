@@ -1,4 +1,3 @@
-from datetime import datetime
 import os
 import sys
 from types import SimpleNamespace
@@ -6,7 +5,7 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import lit, struct, when
+from pyspark.sql.functions import date_format, lit, struct, when
 from pyspark.sql.types import (
 	FloatType,
 	IntegerType,
@@ -15,8 +14,8 @@ from pyspark.sql.types import (
 	StructType,
 )
 
-from metadata.f1_topic import F1Topic
 import transform.silver.schema_migrator as schema_migrator_module
+from metadata.f1_topic import F1Topic
 from transform.silver.schema_migrator import DerivedLogic
 
 
@@ -27,13 +26,23 @@ def spark():
 		SparkSession.builder.master("local[1]")
 		.appName("schema-migrator-tests")
 		.config("spark.ui.enabled", "false")
+		.config("spark.sql.session.timeZone", "UTC")
 		.getOrCreate()
 	)
 	yield session
 	session.stop()
 
 
-def test_transform_dim_race_combines_date_and_time(spark):
+@pytest.mark.parametrize(
+	("race_time", "expected_date"),
+	[
+		("15:00:00Z", "2024-03-02 15:00:00"),
+		(None, "2024-03-02 00:00:00"),
+	],
+)
+def test_transform_dim_race_combines_date_and_optional_time(
+	spark, race_time, expected_date
+):
 	circuit_schema = StructType(
 		[
 			StructField("circuitId", StringType()),
@@ -60,16 +69,42 @@ def test_transform_dim_race_combines_date_and_time(spark):
 		"Circuit": {"circuitId": "bahrain", "circuitName": "Bahrain", "Location": {}},
 		"raceName": "Bahrain Grand Prix",
 		"date": "2024-03-02",
-		"time": "15:00:00Z",
+		"time": race_time,
 		"source": "jolpica_api",
 	}
 
 	result = DerivedLogic.transform_dim_race(
 		{F1Topic.JOLPICA_RACE: spark.createDataFrame([race], race_schema)}
-	).first()
+	).select("race_id", date_format("date", "yyyy-MM-dd HH:mm:ss").alias("date")).first()
 
 	assert result.race_id == "2024_1"
-	assert result.date == datetime(2024, 3, 2, 15, 0)
+	assert result.date == expected_date
+
+
+def test_transform_dim_session_uses_race_timestamp(spark):
+	schema = StructType(
+		[
+			StructField("race_id", StringType()),
+			StructField("date", StringType()),
+			StructField("time", StringType()),
+			StructField("source", StringType()),
+			StructField("season", IntegerType()),
+		]
+	)
+	race = spark.createDataFrame(
+		[("2024_1", "2024-03-02", "15:00:00Z", "jolpica_api", 2024)],
+		schema,
+	)
+
+	result = DerivedLogic.transform_dim_session(
+		{F1Topic.JOLPICA_RACE: race}
+	).select(
+		"session_id",
+		date_format("date", "yyyy-MM-dd HH:mm:ss").alias("date"),
+	).first()
+
+	assert result.session_id == "2024_1R"
+	assert result.date == "2024-03-02 15:00:00"
 
 
 def test_transform_dim_race_result_statsf1_maps_case_insensitive_status(spark):

@@ -1,13 +1,24 @@
-from types import SimpleNamespace
-from unittest.mock import Mock
+import importlib
+import sys
+from types import ModuleType, SimpleNamespace
+from unittest.mock import Mock, patch
 
 import pytest
 from pyspark.sql.types import StringType, StructField, StructType
 
-import transform.silver_job as silver_job_module
-from metadata.IngestionMode import DataIngestionType
-from transform.silver_table_config import DerivedTableConfig
-from transform.silver_job import silverJob
+delta_package = ModuleType("delta")
+delta_package.__path__ = []
+delta_tables = ModuleType("delta.tables")
+delta_tables.DeltaTable = Mock()
+with patch.dict(sys.modules, {"delta": delta_package, "delta.tables": delta_tables}):
+	silver_job_module = importlib.import_module("transform.silver.silver_job")
+	silverJob = silver_job_module.silverJob
+	DataIngestionType = importlib.import_module(
+		"metadata.IngestionMode"
+	).DataIngestionType
+	silver_table_config = importlib.import_module("transform.silver.silver_table_config")
+	DerivedTableConfig = silver_table_config.DerivedTableConfig
+	WriteStrategy = silver_table_config.WriteStrategy
 
 
 @pytest.mark.parametrize(
@@ -25,7 +36,7 @@ def test_read_bronze_source_selects_reader_and_flattens_metadata(
 	parsed_df = Mock(name="parsed_df")
 	flattened_df = Mock(name="flattened_df")
 	reader = Mock()
-	getattr(reader, "format").return_value.load.return_value = bronze_df
+	reader.format.return_value.load.return_value = bronze_df
 	spark = SimpleNamespace(**{reader_name: reader})
 	bronze_df.withColumn.return_value = parsed_df
 	parsed_df.select.return_value = flattened_df
@@ -76,34 +87,133 @@ def test_process_derived_table_reads_silver_source_but_writes_output_table(monke
 	schema = StructType([StructField("master_key", StringType(), True)])
 	source_df = Mock(name="source_df")
 	output_df = Mock(name="output_df")
+	output_df.dropna.return_value = output_df
 	output_df.dropDuplicates.return_value = output_df
-	output_df.withColumn.return_value = output_df
 	transform = Mock(return_value=output_df)
 	config = DerivedTableConfig(
 		table_name="XWALK_DRIVER",
 		source_table={},
 		silver_source_table={"XWALK_CONSTRUCTOR": schema},
 		ingestion_type=DataIngestionType.BATCH_INGESTION,
+		write_strategy=WriteStrategy.MERGE,
 		transformation_fn=transform,
 		primary_keys=["source", "source_native_key"],
 	)
 	read = Mock()
 	read.format.return_value.load.return_value = source_df
 	spark = SimpleNamespace(read=read)
-	writer = Mock(return_value="write-result")
-	monkeypatch.setattr(silver_job_module.DeltaBatchWriter, "write_to_delta", writer)
-	monkeypatch.setattr(silver_job_module, "current_timestamp", Mock(return_value="now"))
+	writer = Mock()
+	monkeypatch.setattr(silver_job_module.DeltaWriterEngine, "silver_writer", writer)
 	job = silverJob(spark, silverBasePath="s3a://silver/")
 	job.apply_transformation = Mock(return_value=output_df)
+	writer.return_value = "writer-result"
 
 	result = job.process_derived_table(config)
 
-	assert result == "write-result"
+	assert result == "writer-result"
 	read.format.assert_called_once_with("delta")
 	read.format.return_value.load.assert_called_once_with("s3a://silver/XWALK_CONSTRUCTOR")
 	transform.assert_called_once_with({"XWALK_CONSTRUCTOR": source_df})
-	writer.assert_called_once_with(
-		df=output_df,
-		deltaPath="s3a://silver/XWALK_DRIVER",
-		partitionCols=None,
+	job.apply_transformation.assert_called_once_with(output_df, config)
+	output_df.dropna.assert_called_once_with(subset=config.primary_keys)
+	output_df.dropDuplicates.assert_called_once_with(config.primary_keys)
+	writer.assert_called_once_with(df=output_df, spark=spark, config=config)
+
+
+@pytest.mark.parametrize(
+	("write_strategy", "uses_watermark"),
+	[
+		(WriteStrategy.APPEND, True),
+		(WriteStrategy.MERGE, False),
+	],
+)
+def test_process_base_table_watermarks_only_streaming_append(
+	monkeypatch, write_strategy, uses_watermark
+):
+	config = SimpleNamespace(
+		source_topic="topic-a",
+		table_name="TABLE_A",
+		schema=StructType([]),
+		computed_columns=None,
+		primary_keys=["id"],
+		ingestion_type=DataIngestionType.STREAMING_INGESTION,
+		write_strategy=write_strategy,
+		time_column="kafka_timestamp",
 	)
+	flattened_df = Mock(name="flattened_df")
+	transformed_df = Mock(name="transformed_df")
+	transformed_df.dropna.return_value = transformed_df
+	watermarked_df = Mock(name="watermarked_df")
+	deduplicated_df = Mock(name="deduplicated_df")
+	transformed_df.withWatermark.return_value = watermarked_df
+	watermarked_df.dropDuplicatesWithinWatermark.return_value = deduplicated_df
+	job = silverJob(Mock())
+	job.read_bronze_source = Mock(return_value=flattened_df)
+	job.apply_transformation = Mock(return_value=transformed_df)
+	writer = Mock(return_value="writer-result")
+	monkeypatch.setattr(silver_job_module.DeltaWriterEngine, "silver_writer", writer)
+
+	result = job.process_base_table(config)
+
+	assert result == "writer-result"
+	job.read_bronze_source.assert_called_once_with(
+		source_topic="topic-a",
+		ingestion_type=DataIngestionType.STREAMING_INGESTION,
+		schema=config.schema,
+	)
+	job.apply_transformation.assert_called_once_with(flattened_df, config)
+	transformed_df.dropna.assert_called_once_with(subset=config.primary_keys)
+	if uses_watermark:
+		transformed_df.withWatermark.assert_called_once_with("kafka_timestamp", "30 minutes")
+		watermarked_df.dropDuplicatesWithinWatermark.assert_called_once_with(config.primary_keys)
+		writer.assert_called_once_with(df=deduplicated_df, spark=job.sparkSession, config=config)
+	else:
+		transformed_df.withWatermark.assert_not_called()
+		watermarked_df.dropDuplicatesWithinWatermark.assert_not_called()
+		writer.assert_called_once_with(df=transformed_df, spark=job.sparkSession, config=config)
+
+
+@pytest.mark.parametrize(
+	("write_strategy", "uses_watermark"),
+	[
+		(WriteStrategy.APPEND, True),
+		(WriteStrategy.MERGE, False),
+	],
+)
+def test_process_derived_streaming_watermarks_only_append(
+	monkeypatch, write_strategy, uses_watermark
+):
+	output_df = Mock(name="output_df")
+	output_df.dropna.return_value = output_df
+	watermarked_df = Mock(name="watermarked_df")
+	deduplicated_df = Mock(name="deduplicated_df")
+	output_df.withWatermark.return_value = watermarked_df
+	watermarked_df.dropDuplicatesWithinWatermark.return_value = deduplicated_df
+	transform = Mock(return_value=output_df)
+	config = DerivedTableConfig(
+		table_name="DERIVED_TABLE",
+		source_table={},
+		ingestion_type=DataIngestionType.STREAMING_INGESTION,
+		write_strategy=write_strategy,
+		transformation_fn=transform,
+		primary_keys=["id"],
+	)
+	job = silverJob(SimpleNamespace())
+	job.apply_transformation = Mock(return_value=output_df)
+	writer = Mock(return_value="writer-result")
+	monkeypatch.setattr(silver_job_module.DeltaWriterEngine, "silver_writer", writer)
+
+	result = job.process_derived_table(config)
+
+	assert result == "writer-result"
+	transform.assert_called_once_with({})
+	job.apply_transformation.assert_called_once_with(output_df, config)
+	output_df.dropna.assert_called_once_with(subset=config.primary_keys)
+	if uses_watermark:
+		output_df.withWatermark.assert_called_once_with("kafka_timestamp", "30 minutes")
+		watermarked_df.dropDuplicatesWithinWatermark.assert_called_once_with(config.primary_keys)
+		writer.assert_called_once_with(df=deduplicated_df, spark=job.sparkSession, config=config)
+	else:
+		output_df.withWatermark.assert_not_called()
+		watermarked_df.dropDuplicatesWithinWatermark.assert_not_called()
+		writer.assert_called_once_with(df=output_df, spark=job.sparkSession, config=config)
