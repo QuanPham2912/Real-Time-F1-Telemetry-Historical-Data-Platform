@@ -1,10 +1,11 @@
-from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import DataFrame, SparkSession, Window
 from pyspark.sql.streaming import StreamingQuery
 from delta.tables import DeltaTable
 from typing import List, Dict, Optional, Callable, TYPE_CHECKING
 from metadata.logger import ETLLogger
 import posixpath
 from transform.silver.silver_table_config import Base
+from pyspark.sql.functions import row_number, col
 
 logger = ETLLogger.get_logger()
 silverBasePath :str = "s3a://f1-silver/"
@@ -39,6 +40,15 @@ class DeltaStreamWriter:
             def upsert_batch(batch_df: DataFrame, batch_id: int):
                 if batch_df.isEmpty():
                     return
+
+                #Take the latest record for each primary key based on kafka_timestamp
+                # This is to ensure that if there are multiple records for the same primary key in the batch, only the latest one is considered for merging into the Delta table.
+                # This also helps eliminate the need to use dropDuplicateWithWaterMark.
+                w = Window.partitionBy(*primaryKeys).orderBy(col("kafka_timestamp").desc())
+                batch_df = (batch_df
+                    .withColumn("_rn", row_number().over(w))
+                    .filter("_rn = 1")
+                    .drop("_rn"))
 
                 if DeltaTable.isDeltaTable(sparkSession, destinationPath):
                     delta_table = DeltaTable.forPath(sparkSession, destinationPath)
@@ -79,6 +89,7 @@ class DeltaBatchWriter:
     @staticmethod
     def dynamic_partition_overwrite(df: DataFrame,
                                     deltaPath: str,
+                                    replaceConditionCols: list[str] | None = None,
                                     partitionCols: list[str] | None = None,
                                 ):
         logger.info(f"Starting Delta Dynamic Partition Overwrite to path '{deltaPath}'.")
@@ -92,7 +103,7 @@ class DeltaBatchWriter:
                 if len(formatted_vals) > 0:
                     conditions.append(f"{col_name} IN ({', '.join(formatted_vals)})")
             return " AND ".join(conditions)
-        replaceCondition = build_replace_condition(df, partitionCols) if partitionCols else None
+        replaceCondition = build_replace_condition(df, replaceConditionCols) if replaceConditionCols else None
         writer = df.write \
             .format("delta") \
             .mode("overwrite")    
@@ -161,6 +172,7 @@ class DeltaWriterEngine:
             elif strategy == "dynamic_overwrite":
                 DeltaBatchWriter.dynamic_partition_overwrite(df = df,
                                                              deltaPath = silver_path,
+                                                             replaceConditionCols = config.replace_condition_cols,
                                                              partitionCols = config.partition_cols)
             elif strategy == "append":
                 DeltaBatchWriter.write_to_delta(df = df,

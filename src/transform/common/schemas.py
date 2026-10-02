@@ -1,5 +1,6 @@
 from pyspark.sql.types import (
     BooleanType,
+    DateType,
     FloatType,
     IntegerType,
     StringType,
@@ -79,7 +80,7 @@ class F1Schemas:
         StructField("code", StringType(), True),
         StructField("givenName", StringType(), True),
         StructField("familyName", StringType(), True),
-        StructField("dateOfBirth", TimestampType(), True),
+        StructField("dateOfBirth", DateType(), True),
         StructField("nationality", StringType(), True),
         StructField("source", StringType(), True)
     ]) 
