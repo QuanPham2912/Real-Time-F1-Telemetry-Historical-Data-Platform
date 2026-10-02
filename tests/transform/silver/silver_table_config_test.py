@@ -1,8 +1,8 @@
 import pytest
 from pyspark.sql.types import StructType
 
-from metadata.IngestionMode import DataIngestionType
 from metadata.f1_topic import F1Topic
+from metadata.IngestionMode import DataIngestionType
 from transform.silver.schema_migrator import DerivedLogic
 from transform.silver.silver_table_config import (
 	BASE_TABLE_CONFIGS,
@@ -88,6 +88,22 @@ def test_xwalk_driver_declares_constructor_crosswalk_source():
 	}
 
 
+def test_dynamic_overwrite_configs_declare_replace_condition_columns():
+	expected_replace_columns = {
+		"FACT_RESULTS_STATSF1": ["race_id"],
+		"DIM_RACE": ["race_id"],
+		"DIM_SESSION": ["session_id"],
+		"FACT_RESULT": ["race_id"],
+	}
+	actual_replace_columns = {
+		name: config.replace_condition_cols
+		for name, config in DERIVED_TABLE_CONFIGS.items()
+		if config.write_strategy == WriteStrategy.DYNAMIC_OVERWRITE
+	}
+
+	assert actual_replace_columns == expected_replace_columns
+
+
 def test_ingestion_config_dataclasses_have_optional_defaults():
 	base_config = BaseIngestionConfig(
 		table_name="table",
@@ -109,7 +125,8 @@ def test_ingestion_config_dataclasses_have_optional_defaults():
 	for config in (base_config, derived_config):
 		assert config.column_mapping is None
 		assert config.partition_cols is None
-		assert config.time_column == "silver_load_time"
+		assert config.replace_condition_cols is None
+		assert config.time_column == "kafka_timestamp"
 
 	assert base_config.computed_columns is None
 	assert derived_config.silver_source_table is None

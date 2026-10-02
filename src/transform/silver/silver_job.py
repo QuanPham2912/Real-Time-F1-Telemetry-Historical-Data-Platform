@@ -66,16 +66,21 @@ class silverJob:
                 if col_name in flattened_df.columns:
                     flattened_df = flattened_df.withColumn(col_name, expr(sql_expr))
 
+        #Drop NA rows
+        flattened_df = flattened_df.dropna(subset=config.primary_keys)
+
         #Deduplicate
         if config.ingestion_type == DataIngestionType.BATCH_INGESTION:
             flattened_df = flattened_df.dropDuplicates(config.primary_keys)
-        elif config.ingestion_type == DataIngestionType.STREAMING_INGESTION:
+        #Because we are using dropDuplicatesWithinWatermark, we need to set watermark on the time column to ensure that we are only considering the latest records for each primary key within the watermark duration. This is important for streaming ingestion to avoid duplicates in the silver layer.
+        #But we only use it for append mode because for merge mode, we are using the latest record based on kafka_timestamp to merge into the silver layer.
+        elif config.ingestion_type == DataIngestionType.STREAMING_INGESTION and config.write_strategy == "append":
             flattened_df = flattened_df.withWatermark(config.time_column, "30 minutes")\
-                                        .dropDuplicates(config.primary_keys)
+                                        .dropDuplicatesWithinWatermark(config.primary_keys)
 
         logger.info(f"Writing to silver layer at path '{silver_path}' with checkpoint at '{checkpoint_path}'.")
 
-        DeltaWriterEngine.silver_writer(df = flattened_df,
+        return DeltaWriterEngine.silver_writer(df = flattened_df,
                                       spark = self.sparkSession,
                                       config = config)
 
@@ -110,14 +115,16 @@ class silverJob:
 
         transformed_df = self.apply_transformation(transformed_df, config)
 
+        transformed_df = transformed_df.dropna(subset=config.primary_keys)
+
         if config.ingestion_type == DataIngestionType.BATCH_INGESTION:
             transformed_df = transformed_df.dropDuplicates(config.primary_keys)
-        elif config.ingestion_type == DataIngestionType.STREAMING_INGESTION:
+        elif config.ingestion_type == DataIngestionType.STREAMING_INGESTION and config.write_strategy == "append":
             transformed_df = transformed_df.withWatermark(config.time_column, "30 minutes")\
-                                            .dropDuplicates(config.primary_keys)
+                                            .dropDuplicatesWithinWatermark(config.primary_keys)
 
         logger.info(f"Writing to silver layer at path '{silver_path}' with checkpoint at '{checkpoint_path}'.")
-        DeltaWriterEngine.silver_writer(df = transformed_df,
+        return DeltaWriterEngine.silver_writer(df = transformed_df,
                                       spark = self.sparkSession,
                                       config = config)
 

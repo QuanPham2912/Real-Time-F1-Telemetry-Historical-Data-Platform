@@ -26,6 +26,12 @@ class sql:
 
 class DerivedLogic:
     @staticmethod
+    def race_timestamp():
+        return when(
+            col("time").isNotNull(),
+            to_timestamp(concat_ws("T", col("date"), col("time")), "yyyy-MM-dd'T'HH:mm:ssX"),
+            ).otherwise(to_timestamp(col("date"), "yyyy-MM-dd"))
+
     def transform_dim_race_result_statsf1(sources : dict):
         status_dict = F1ResultStatus.get_code_mapping()
         #Create pyspark mapping table
@@ -82,10 +88,7 @@ class DerivedLogic:
             col("round"),
             col("Circuit.circuitId"),
             col("raceName"),
-            to_timestamp(
-                concat_ws("T", col("date"), col("time")),
-                "yyyy-MM-dd'T'HH:mm:ss'Z'",
-            ).alias("date"),
+            DerivedLogic.race_timestamp().alias("date"),
             col("source"),
             current_timestamp().alias("silver_load_time")
         )
@@ -101,8 +104,9 @@ class DerivedLogic:
             col("race_id"),
             lit("R").alias("session_type"),
             # if adding more session type the data need to concern to that type of session
-            to_timestamp(concat_ws("T",  col("date"), col("time")),"yyyy-MM-dd'T'HH:mm:ss'Z'").alias("date"),
+            DerivedLogic.race_timestamp().alias("date"),
             col("source"),
+            col("season"),
             current_timestamp().alias("silver_load_time")
         )
 
@@ -161,7 +165,9 @@ class DerivedLogic:
                     same_nation = [c for c in candidates  if dim_map_nation.get(c[2]) and nation and dim_map_nation.get(c[2]).casefold() == nation.casefold()]
                     if(len(same_nation) == 1):
                         best_match_name, best_confidence_score, constructor_id = same_nation[0]
-
+                if best_confidence_score < 50:
+                    results.append((None, 0.0))
+                    continue
                 results.append((constructor_id, float(best_confidence_score/100)))
 
             return pd.DataFrame(results, columns=["master_key","confidence_score"])
@@ -246,6 +252,10 @@ class DerivedLogic:
                     ]
                     if len(same_constructor_season) == 1:
                         best_match_name, best_confidence_score, driver_id = same_constructor_season[0]
+                
+                if best_confidence_score < 50:
+                    results.append((None, 0.0))
+                    continue
 
                 results.append((driver_id, float(best_confidence_score/100)))
             return pd.DataFrame(results, columns=["master_key","confidence_score"])
