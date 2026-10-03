@@ -103,7 +103,7 @@ def test_transform_dim_session_uses_race_timestamp(spark):
 		date_format("date", "yyyy-MM-dd HH:mm:ss").alias("date"),
 	).first()
 
-	assert result.session_id == "2024_1R"
+	assert result.session_id == "2024_1_R"
 	assert result.date == "2024-03-02 15:00:00"
 
 

@@ -26,15 +26,16 @@ class FastF1Extractor(Extractor):
 
     def extract_lap_data(self, session):
         laps = session.laps
-        result = laps[['Driver','LapNumber', 'LapTime', 'Stint', 'Compound', 'TyreLife',
-                          'FreshTyre', 'Sector1Time', 'Sector2Time', 'Sector3Time',
-                          'PitInTime', 'PitOutTime', 'TrackStatus', 'IsAccurate']].copy()
+        result = laps[['Driver','LapNumber', 'DriverNumber', 'LapTime', 'LapStartTime',
+                        'Time', 'Stint', 'Compound', 'TyreLife',
+                        'FreshTyre', 'Sector1Time', 'Sector2Time', 'Sector3Time',
+                        'PitInTime', 'PitOutTime', 'TrackStatus', 'IsAccurate']].copy()
         # Add session_id and source information to recognize each lap data belongs to each year, round, session type and source system.
         result['Session_id'] = self.session_id
         result['Source'] = self.source_name
         result['Season'] = self.season
         # cast time data to string type 
-        time_cols = ['LapTime', 'Sector1Time', 'Sector2Time', 'Sector3Time', 'PitInTime', 'PitOutTime']
+        time_cols = ['LapTime', 'Sector1Time', 'Sector2Time', 'Sector3Time', 'PitInTime', 'PitOutTime', 'LapStartTime', 'Time']
         for col in time_cols:
             result[col] = result[col].astype(str)
 
