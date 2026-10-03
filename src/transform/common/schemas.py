@@ -52,8 +52,11 @@ class F1Schemas:
     #Schemas for Lap data
     lap_schema = StructType([
         StructField("Driver", StringType(), True),
+        StructField("DriverNumber", StringType(), True),
         StructField("LapNumber", IntegerType(), True),
         StructField("LapTime", StringType(), True), # Have to type casting it to float type later
+        StructField("LapStartTime", StringType(), True), # Have to type casting it to float type later
+        StructField("Time", StringType(), True),
         StructField("Stint", IntegerType(), True),
         StructField("Compound", StringType(), True),
         StructField("TyreLife", IntegerType(), True),

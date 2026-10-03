@@ -99,8 +99,11 @@ BASE_TABLE_CONFIGS = {
         write_strategy = WriteStrategy.MERGE, #Data can be change, exp a lap can be cancel because of track limit ..., in the middle of the race
         column_mapping = {
             "Driver" : "driver_tla",
+            "DriverNumber" : "permanent_number",
             "LapNumber" : "lap_number",
             "LapTime" : "lap_time",
+            "LapStartTime" : "lap_start_time",
+            "Time" : "lap_end_time",
             "TyreLife" : "tyre_life",
             "FreshTyre" : "fresh_tyre",
             "Sector1Time" : "sector_1_time",
@@ -113,6 +116,8 @@ BASE_TABLE_CONFIGS = {
         },
         computed_columns = {
             "lap_time" : sql.deltaTime_to_float("lap_time"),
+            "lap_start_time" : sql.deltaTime_to_float("lap_start_time"),
+            "lap_end_time" : sql.deltaTime_to_float("lap_end_time"),
             "sector_1_time" : sql.deltaTime_to_float("sector_1_time"),
             "sector_2_time" : sql.deltaTime_to_float("sector_2_time"),
             "sector_3_time" : sql.deltaTime_to_float("sector_3_time"),
@@ -206,7 +211,7 @@ DERIVED_TABLE_CONFIGS = {
         },
         replace_condition_cols = ["race_id"],
         transformation_fn = DerivedLogic.transform_dim_race_result_statsf1,
-        primary_keys = ["race_id"],
+        primary_keys = ["race_id", "permanent_number", "position"],
     ),
     "DIM_CIRCUIT" : DerivedTableConfig(
         table_name = "DIM_CIRCUIT",

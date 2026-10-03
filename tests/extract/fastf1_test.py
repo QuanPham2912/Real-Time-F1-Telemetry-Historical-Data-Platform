@@ -72,8 +72,11 @@ class TestExtractLapData:
         mock_session = MagicMock()
         lap_data_df = pd.DataFrame({
             'Driver': ['VER', 'HAM', 'LEC'],
+            'DriverNumber': ['1', '44', '16'],
             'LapNumber': [1, 1, 1],
             'LapTime': pd.to_timedelta([90, 91, 92], unit='s'),
+            'LapStartTime': pd.to_timedelta([0, 90, 180], unit='s'),
+            'Time': pd.to_timedelta([90, 181, 272], unit='s'),
             'Stint': [1, 1, 1],
             'Compound': ['SOFT', 'SOFT', 'SOFT'],
             'TyreLife': [1, 1, 1],
@@ -98,11 +101,14 @@ class TestExtractLapData:
         
         # Verify data content
         assert result[0]['Driver'] == 'VER'
+        assert result[0]['DriverNumber'] == '1'
         assert result[0]['LapNumber'] == 1
-        
+
         # Verify time columns are converted to strings
         assert isinstance(result[0]['LapTime'], str)
         assert isinstance(result[0]['Sector1Time'], str)
+        assert isinstance(result[0]['LapStartTime'], str)
+        assert isinstance(result[0]['Time'], str)
     
     @patch('extract.fastf1_extractor.fastf1.Cache.enable_cache')
     def test_extract_lap_data_empty_dataframe_raises_error(self, mock_cache):
@@ -281,8 +287,11 @@ class TestExtractMethod:
         # Setup minimal non-empty data to avoid errors
         lap_df = pd.DataFrame({
             'Driver': [],
+            'DriverNumber': [],
             'LapNumber': [],
             'LapTime': [],
+            'LapStartTime': [],
+            'Time': [],
             'Stint': [],
             'Compound': [],
             'TyreLife': [],

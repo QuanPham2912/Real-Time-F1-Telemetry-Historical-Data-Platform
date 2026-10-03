@@ -100,7 +100,7 @@ class DerivedLogic:
         raw_df = sources[F1Topic.JOLPICA_RACE]
         result_df = raw_df.select(
             #In the future if adding more session type to project this function have to edited as well
-            concat(col("race_id"), lit("R")).alias("session_id"),
+            concat(col("race_id"), lit("_R")).alias("session_id"),
             col("race_id"),
             lit("R").alias("session_type"),
             # if adding more session type the data need to concern to that type of session

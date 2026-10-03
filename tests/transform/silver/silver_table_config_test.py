@@ -3,7 +3,7 @@ from pyspark.sql.types import StructType
 
 from metadata.f1_topic import F1Topic
 from metadata.IngestionMode import DataIngestionType
-from transform.silver.schema_migrator import DerivedLogic
+from transform.silver.schema_migrator import DerivedLogic, sql
 from transform.silver.silver_table_config import (
 	BASE_TABLE_CONFIGS,
 	DERIVED_TABLE_CONFIGS,
@@ -38,6 +38,16 @@ def test_base_table_configs_are_consistent(config_name, config):
 	}
 	output_columns.update((config.computed_columns or {}).keys())
 	assert set(config.primary_keys).issubset(output_columns)
+
+
+def test_fact_lap_maps_driver_number_and_elapsed_times():
+	config = BASE_TABLE_CONFIGS["FACT_LAP"]
+
+	assert config.column_mapping["DriverNumber"] == "permanent_number"
+	assert config.column_mapping["LapStartTime"] == "lap_start_time"
+	assert config.column_mapping["Time"] == "lap_end_time"
+	assert config.computed_columns["lap_start_time"] == sql.deltaTime_to_float("lap_start_time")
+	assert config.computed_columns["lap_end_time"] == sql.deltaTime_to_float("lap_end_time")
 
 
 @pytest.mark.parametrize(
