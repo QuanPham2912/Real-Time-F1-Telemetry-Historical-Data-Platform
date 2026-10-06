@@ -126,11 +126,12 @@ class DerivedLogic:
             col("laps"),
             col("status"),
             col("Time.*"),
-            col("FastestLap.rank"),
-            col("FastestLap.lap"),
-            col("FastestLap.Time.time").alias("fastest_time"),
+            col("FastestLap.rank").alias("fastest_lap_rank"),
+            col("FastestLap.lap").alias("fastest_lap_number"),
+            col("FastestLap.Time.time").alias("fastest_lap_time"),
             col("FastestLap.AverageSpeed.*"),
             col("source"),
+            col("season"),
             current_timestamp().alias("silver_load_time")
         )
 

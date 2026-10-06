@@ -15,7 +15,7 @@ class F1Schemas:
     """
     #Schema for telementry data
     telemetry_schema = StructType([
-        StructField("PermanentNumber", StringType(), True),
+        StructField("PermanentNumber", IntegerType(), True),
         StructField("Date", TimestampType(), True),
         StructField("Time", StringType(), True),    # Have to type casting it to float type later
         StructField("SessionTime", StringType(), True),  # Have to type casting it to float type later
@@ -52,7 +52,7 @@ class F1Schemas:
     #Schemas for Lap data
     lap_schema = StructType([
         StructField("Driver", StringType(), True),
-        StructField("DriverNumber", StringType(), True),
+        StructField("DriverNumber", IntegerType(), True),
         StructField("LapNumber", IntegerType(), True),
         StructField("LapTime", StringType(), True), # Have to type casting it to float type later
         StructField("LapStartTime", StringType(), True), # Have to type casting it to float type later
