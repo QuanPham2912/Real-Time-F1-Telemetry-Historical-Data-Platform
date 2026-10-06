@@ -163,6 +163,7 @@ def test_transform_fact_result_projects_grid_column(spark):
 			StructField("Time", StructType([StructField("millis", FloatType()), StructField("time", StringType())])),
 			StructField("FastestLap", fastest_lap_schema),
 			StructField("source", StringType()),
+			StructField("season", IntegerType()),
 		]
 	)
 	row = {
@@ -183,6 +184,7 @@ def test_transform_fact_result_projects_grid_column(spark):
 			"AverageSpeed": {"units": " kph", "speed": 200.0},
 		},
 		"source": "jolpica_api",
+		"season": 2024,
 	}
 
 	result = DerivedLogic.transform_fact_result(
@@ -192,6 +194,10 @@ def test_transform_fact_result_projects_grid_column(spark):
 	assert result.grid == 2
 	assert result.driver_id == "driver-1"
 	assert result.constructor_id == "constructor-1"
+	assert result.fastest_lap_rank == 1
+	assert result.fastest_lap_number == 5
+	assert result.fastest_lap_time == "1:20.000"
+	assert result.season == 2024
 
 
 def test_transform_xwalk_constructor_uses_raw_statsf1_schema(spark, monkeypatch):
