@@ -1,17 +1,31 @@
 import importlib
 import sys
 from types import ModuleType, SimpleNamespace
-from unittest.mock import Mock, call, patch
+from unittest.mock import Mock, call
 
 delta_package = ModuleType("delta")
 delta_package.__path__ = []
 delta_tables = ModuleType("delta.tables")
 delta_tables.DeltaTable = Mock()
-with patch.dict(sys.modules, {"delta": delta_package, "delta.tables": delta_tables}):
+_missing_module = object()
+_previous_delta = sys.modules.get("delta", _missing_module)
+_previous_delta_tables = sys.modules.get("delta.tables", _missing_module)
+sys.modules["delta"] = delta_package
+sys.modules["delta.tables"] = delta_tables
+try:
 	gold_job_module = importlib.import_module("transform.gold.gold_job")
 	GoldTableConfig = importlib.import_module(
 		"transform.gold.gold_table_config"
 	).GoldTableConfig
+finally:
+	for module_name, previous_module in (
+		("delta", _previous_delta),
+		("delta.tables", _previous_delta_tables),
+	):
+		if previous_module is _missing_module:
+			sys.modules.pop(module_name, None)
+		else:
+			sys.modules[module_name] = previous_module
 
 
 def build_delta_reader(dataframe):
