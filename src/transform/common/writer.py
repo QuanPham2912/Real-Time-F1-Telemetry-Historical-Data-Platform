@@ -22,7 +22,8 @@ class DeltaStreamWriter:
         writer = df.writeStream \
             .format("delta") \
             .outputMode(outputMode) \
-            .option("checkpointLocation", checkPointPath)
+            .option("checkpointLocation", checkPointPath) \
+            .trigger(availableNow = True)
 
         if partitionCols:
             writer = writer.partitionBy(*partitionCols)
@@ -67,6 +68,7 @@ class DeltaStreamWriter:
             writer = df.writeStream \
                         .foreachBatch(upsert_batch) \
                         .option("checkpointLocation", checkPointPath) \
+                        .trigger(availableNow = True) \
                         .start()
             return writer
 
