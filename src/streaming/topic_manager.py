@@ -9,15 +9,23 @@ logger = ETLLogger.get_logger()
 class KafkaTopicManager(BaseTopicManager):
 
     TOPIC_CONFIGS = {
-        F1Topic.DIM_DRIVER: {"num_partitions": 1, "replication_factor": 1},
-        F1Topic.DIM_CONSTRUCTOR: {"num_partitions": 1, "replication_factor": 1},
-        F1Topic.FACT_RACE_RESULT: {"num_partitions": 3, "replication_factor": 1},
-        F1Topic.FACT_LAP: {"num_partitions": 3, "replication_factor": 1},
-        F1Topic.STREAM_TELEMETRY: {"num_partitions": 6, "replication_factor": 1},
-        F1Topic.STREAM_WEATHER: {"num_partitions": 1, "replication_factor": 1}
+        F1Topic.JOLPICA_CONSTRUCTOR: {"num_partitions": 1, "replication_factor": 1},
+        F1Topic.JOLPICA_DRIVER : {"num_partitions": 1, "replication_factor": 1},
+        F1Topic.JOLPICA_RACE : {"num_partitions": 1, "replication_factor": 1},
+        F1Topic.JOLPICA_RACE_RESULT : {"num_partitions": 2, "replication_factor": 1},
+        
+        F1Topic.STATSF1_CAR_STATSF1 : {"num_partitions": 1, "replication_factor": 1},
+        F1Topic.STATSF1_CONSTRUCTOR_STATSF1 : {"num_partitions": 1, "replication_factor": 1},
+        F1Topic.STATSF1_DRIVER_STATSF1 : {"num_partitions": 1, "replication_factor": 1},
+        F1Topic.STATSF1_RACE_RESULT : {"num_partitions": 2, "replication_factor": 1},
+        F1Topic.STATSF1_ENGINE_SUPPLIER_STATSF1 : {"num_partitions": 1, "replication_factor": 1},
+
+        F1Topic.FASTF1_LAP : {"num_partitions": 3, "replication_factor": 1},
+        F1Topic.FASTF1_TELEMETRY : {"num_partitions": 6, "replication_factor": 1},
+        F1Topic.FASTF1_WEATHER : {"num_partitions": 2, "replication_factor": 1}
     }
 
-    def __init__(self, bootstrap_servers: str = "localhost:9092"):
+    def __init__(self, bootstrap_servers: str = "kafka1:19092"):
         self.admin_client = KafkaAdminClient(bootstrap_servers=bootstrap_servers)
 
     def create_topic(self, topic_name: str, num_partitions: int = 1, replication_factor: int = 1):

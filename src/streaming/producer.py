@@ -8,7 +8,7 @@ from metadata.logger import ETLLogger
 logger = ETLLogger.get_logger()
 
 class KafkaProducer(baseProducer):
-    def __init__(self, bootstrap_servers: str = "localhost:9092"):
+    def __init__(self, bootstrap_servers: str = "kafka1:19092"):
         self.producer = KafkaClient(bootstrap_servers=bootstrap_servers,
                                     value_serializer=lambda v: json.dumps(v).encode('utf-8'),
                                     key_serializer=lambda k: k.encode('utf-8') if k else None,

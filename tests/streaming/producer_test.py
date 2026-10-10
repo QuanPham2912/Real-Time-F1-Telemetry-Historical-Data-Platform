@@ -18,7 +18,7 @@ class TestKafkaProducer:
 
 		assert isinstance(producer, baseProducer)
 		mock_client.assert_called_once()
-		assert mock_client.call_args.kwargs["bootstrap_servers"] == "localhost:9092"
+		assert mock_client.call_args.kwargs["bootstrap_servers"] == "kafka1:19092"
 		assert mock_client.call_args.kwargs["batch_size"] == 32768
 		assert mock_client.call_args.kwargs["linger_ms"] == 10
 
@@ -27,10 +27,10 @@ class TestKafkaProducer:
 		producer = self.build_producer(mock_client)
 		message = {"driver": "VER"}
 
-		producer.send(F1Topic.STREAM_TELEMETRY, message, key="car-1")
+		producer.send(F1Topic.FASTF1_TELEMETRY, message, key="car-1")
 
 		mock_client.send.assert_called_once_with(
-			F1Topic.STREAM_TELEMETRY.value,
+			F1Topic.FASTF1_TELEMETRY.value,
 			key="car-1",
 			value=message,
 		)
@@ -41,7 +41,7 @@ class TestKafkaProducer:
 		messages = [{"driver": "VER", "lap": 1}, {"driver": "HAM", "lap": 2}]
 
 		producer.send_many(
-			F1Topic.FACT_LAP,
+			F1Topic.FASTF1_LAP,
 			messages=messages,
 			key_builder=lambda message: f"{message['driver']}-{message['lap']}",
 		)
@@ -60,10 +60,10 @@ class TestKafkaProducer:
 		mock_client = MagicMock()
 		producer = self.build_producer(mock_client)
 
-		producer.send_many(F1Topic.FACT_LAP, messages=[{"lap": 1}])
+		producer.send_many(F1Topic.FASTF1_LAP, messages=[{"lap": 1}])
 
 		mock_client.send.assert_called_once_with(
-			F1Topic.FACT_LAP.value,
+			F1Topic.FASTF1_LAP.value,
 			key=None,
 			value={"lap": 1},
 		)
@@ -72,7 +72,7 @@ class TestKafkaProducer:
 		mock_client = MagicMock()
 		producer = self.build_producer(mock_client)
 
-		producer.send_many(F1Topic.FACT_LAP)
+		producer.send_many(F1Topic.FASTF1_LAP)
 
 		mock_client.send.assert_not_called()
 

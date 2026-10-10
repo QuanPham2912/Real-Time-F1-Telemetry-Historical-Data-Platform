@@ -32,7 +32,7 @@ class TestKafkaTopicManager:
     def test_init_with_default_bootstrap_servers(self, mock_admin_client):
         """Test KafkaTopicManager initialization with default bootstrap servers."""
         manager = KafkaTopicManager()
-        mock_admin_client.assert_called_once_with(bootstrap_servers="localhost:9092")
+        mock_admin_client.assert_called_once_with(bootstrap_servers="kafka1:19092")
 
     def test_init_with_custom_bootstrap_servers(self, mock_admin_client):
         """Test KafkaTopicManager initialization with custom bootstrap servers."""
