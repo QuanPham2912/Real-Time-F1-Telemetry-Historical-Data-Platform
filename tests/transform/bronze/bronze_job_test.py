@@ -32,8 +32,9 @@ def test_read_from_kafka_configures_stream_source():
 	assert reader.method_calls == [
 		call.format("kafka"),
 		call.option("kafka.bootstrap.servers", "kafka:29092"),
-			call.option("subscribe", F1Topic.FASTF1_TELEMETRY.value),
+		call.option("subscribe", F1Topic.FASTF1_TELEMETRY.value),
 		call.option("startingOffsets", "earliest"),
+		call.option("maxOffsetsPerTrigger", 50000),
 		call.load(),
 	]
 

@@ -131,10 +131,10 @@ class Gold_logic:
                                     .join(fact_result_statsf1_df,(
                                         (fact_result_df.race_id == fact_result_statsf1_df.race_id) &
                                         (Gold_logic.normalize(xwalk_driver_df.driver_name) == Gold_logic.normalize(fact_result_statsf1_df.driver_name))),how = "left" ) \
-                                    .withColumn("session_key", xxhash64(concat(fact_result_statsf1_df.race_id,lit("_R")))) \
+                                    .withColumn("session_key", xxhash64(concat(fact_result_df.race_id,lit("_R")))) \
                                     .withColumn("driver_key", xxhash64(col("driver_id"))) \
                                     .withColumn("constructor_key", xxhash64(col("constructor_id"))) \
-                                    .withColumn("engine_manufacturer_key", when(col("engine_manufacturer").isNull, lit(-1)).otherwise(xxhash64(col("engine_manufacturer")))) \
+                                    .withColumn("engine_manufacturer_key", when(col("engine_manufacturer").isNull(), lit(-1)).otherwise(xxhash64(col("engine_manufacturer")))) \
                                     .select(
                                         col("session_key"),
                                         col("driver_key"),
@@ -165,7 +165,7 @@ class Gold_logic:
         fact_result_df = sources["FACT_RESULT"]
         fact_result_df = fact_result_df.withColumn("session_id", concat(col("race_id"),lit("_R"))) \
                                         .withColumn("driver_key",
-                                                    when(col("driver_key").isNull(), lit(-1)).otherwise(xxhash64(col("driver_id")))) \
+                                                    when(col("driver_id").isNull(), lit(-1)).otherwise(xxhash64(col("driver_id")))) \
                                         .withColumn("constructor_key",
                                                     when(col("constructor_id").isNull(), lit(-1)).otherwise(xxhash64(col("constructor_id"))))
 

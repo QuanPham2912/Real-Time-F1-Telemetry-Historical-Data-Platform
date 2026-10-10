@@ -9,7 +9,7 @@ logger = ETLLogger.get_logger()
 
 class BronzeJob:
     def __init__(self,  sparkSession,
-                 bootstrapServer: str="localhost:9092",
+                 bootstrapServer: str="kafka1:19092",
                  basePath :str="s3a://f1-bronze/"):
         self.sparkSession = sparkSession
         self.bootstrapServer = bootstrapServer
@@ -21,6 +21,7 @@ class BronzeJob:
             .option("kafka.bootstrap.servers", self.bootstrapServer) \
             .option("subscribe", topic.value) \
             .option("startingOffsets", "earliest") \
+            .option("maxOffsetsPerTrigger", 50000) \
             .load()
 
     # transform raw data to bronze metadata with format (key, value, timestamp, ingest_time, ingest_date, topic)
