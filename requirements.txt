@@ -7,5 +7,7 @@ pandas
 fastf1
 rapidfuzz
 kafka-python
-pyspark
+pyspark==3.5.0
+delta-spark==3.2.0
 pyarrow
+python-dotenv
