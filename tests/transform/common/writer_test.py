@@ -16,6 +16,7 @@ def build_stream_writer():
 	stream_writer.outputMode.return_value = stream_writer
 	stream_writer.option.return_value = stream_writer
 	stream_writer.partitionBy.return_value = stream_writer
+	stream_writer.trigger.return_value = stream_writer
 	stream_writer.start.return_value = "streaming-query"
 	return stream_writer
 
@@ -86,6 +87,7 @@ def test_write_to_delta_uses_default_output_mode_without_partitions(monkeypatch)
 		call.format("delta"),
 		call.outputMode("append"),
 		call.option("checkpointLocation", "/data/checkpoints"),
+		call.trigger(availableNow=True),
 		call.start("/data/delta"),
 	]
 	stream_writer.partitionBy.assert_not_called()
@@ -110,6 +112,7 @@ def test_write_to_delta_applies_custom_mode_and_partitions(monkeypatch):
 		call.format("delta"),
 		call.outputMode("complete"),
 		call.option("checkpointLocation", "/data/checkpoints"),
+		call.trigger(availableNow=True),
 		call.partitionBy("season", "driver"),
 		call.start("/data/delta"),
 	]
@@ -161,6 +164,7 @@ def test_stream_merge_upserts_nonempty_batches_and_skips_empty_batches(monkeypat
 	stream_writer = Mock()
 	stream_writer.foreachBatch.return_value = stream_writer
 	stream_writer.option.return_value = stream_writer
+	stream_writer.trigger.return_value = stream_writer
 	stream_writer.start.return_value = "streaming-query"
 	callbacks = {}
 	def register_callback(callback):
@@ -206,6 +210,7 @@ def test_stream_merge_upserts_nonempty_batches_and_skips_empty_batches(monkeypat
 	assert stream_writer.method_calls == [
 		call.foreachBatch(callback),
 		call.option("checkpointLocation", "/data/checkpoints"),
+		call.trigger(availableNow=True),
 		call.start(),
 	]
 	writer_module.DeltaTable.isDeltaTable.assert_called_once_with(
