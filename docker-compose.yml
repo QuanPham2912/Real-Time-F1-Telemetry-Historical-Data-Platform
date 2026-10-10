@@ -1,6 +1,18 @@
 x-airflow-common: &airflow-common
-  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:3.3.1}
+  build:
+    context: .
+    dockerfile: Dockerfile.airflow
+  image: f1-airflow:local
+  env_file:
+    - .env
   environment: &airflow-common-env
+    PYTHONPATH: /opt/airflow/src
+    KAFKA_BOOTSTRAP_SERVERS: kafka1:19092
+    S3_ENDPOINT: http://minio:9000
+    S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+    S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    SPARK_DRIVER_MEMORY: 2g
+
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD:-airflow}@airflow-postgres/airflow
@@ -13,8 +25,9 @@ x-airflow-common: &airflow-common
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
     # Cho phép Airflow đọc/ghi MinIO (S3-compatible) qua S3Hook nếu DAG cần
     AIRFLOW_CONN_MINIO_S3: 'aws://minioadmin:minioadmin123@?endpoint_url=http%3A%2F%2Fminio%3A9000'
-    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
   volumes:
+    - ./src:/opt/airflow/src
+    - ivy_cache_airflow:/home/airflow/.ivy2
     - ${AIRFLOW_PROJ_DIR:-./airflow}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-./airflow}/logs:/opt/airflow/logs
     - ${AIRFLOW_PROJ_DIR:-./airflow}/config:/opt/airflow/config
@@ -100,7 +113,7 @@ services:
   # Spark
   # ---------------------------------------------------------------------
   spark:
-    image: apache/spark:4.1.3
+    image: apache/spark:3.5.0
     hostname: spark
     command: [ "/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master" ]
     ports:
@@ -108,7 +121,7 @@ services:
       - "7077:7077"
 
   spark-worker:
-    image: apache/spark:4.1.3
+    image: apache/spark:3.5.0
     command: [ "/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark:7077" ]
     depends_on:
       - spark
@@ -141,7 +154,7 @@ services:
       minio:
         condition: service_healthy
     entrypoint: >
-      /bin/sh -c " mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin123}; mc mb -p local/f1-bronze; exit 0; "
+      /bin/sh -c " mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin123}; mc mb -p local/f1-bronze;  mc mb -p local/f1-silver; mc mb -p local/f1-gold; exit 0; "
 
   # ---------------------------------------------------------------------
   # Airflow (LocalExecutor — scheduler chạy task trực tiếp, không cần Celery/Redis)
@@ -237,6 +250,26 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+  etl:
+    build: .
+    profiles: [ "etl" ]
+    env_file:
+      - .env
+    depends_on:
+      kafka1:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka1:19092
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    volumes:
+      - ./src:/app/src
+      - fastf1_cache:/tmp/fastf1_cache
+      - ivy_cache:/root/.ivy2
+
 volumes:
   pg_data: {}
   conduktor_data: {}
@@ -244,3 +277,5 @@ volumes:
   minio_data: {}
   airflow_postgres_data: {}
   fastf1_cache: {}
+  ivy_cache: {}
+  ivy_cache_airflow: {}
