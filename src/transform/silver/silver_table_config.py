@@ -67,7 +67,12 @@ BASE_TABLE_CONFIGS = {
         },
         computed_columns={
             "time" : sql.deltaTime_to_float("time"),
-            "session_time" : sql.deltaTime_to_float("session_time")
+            "session_time" : sql.deltaTime_to_float("session_time"),
+            "permanent_number" : "cast(permanent_number as int)",
+            "event_time" : "cast(event_time as timestamp)",
+            "rpm" : "cast(rpm as int)",
+            "n_gear" : "cast(n_gear as int)",
+            "drs" : "cast(drs as int)"
         },
         primary_keys = ["session_id","permanent_number","event_time"],
         partition_cols = ["season"]
@@ -86,7 +91,8 @@ BASE_TABLE_CONFIGS = {
             "WindDirection" : "wind_direction"
         },
         computed_columns = {
-            "time" : sql.deltaTime_to_float("time")
+            "time" : sql.deltaTime_to_float("time"),
+            "wind_direction" : "cast(wind_direction as int)"
         }, 
         primary_keys = ["session_id","time"],
         partition_cols= ["season"]
@@ -122,7 +128,11 @@ BASE_TABLE_CONFIGS = {
             "sector_2_time" : sql.deltaTime_to_float("sector_2_time"),
             "sector_3_time" : sql.deltaTime_to_float("sector_3_time"),
             "pit_in_time" : sql.deltaTime_to_float("pit_in_time"),
-            "pit_out_time" : sql.deltaTime_to_float("pit_out_time")
+            "pit_out_time" : sql.deltaTime_to_float("pit_out_time"),
+            "permanent_number" : "cast(permanent_number as int)",
+            "tyre_life" : "cast(tyre_life as int)",
+            "lap_number" : "cast(lap_number as int)",
+            "stint": "cast(stint as int)",
         },
         primary_keys = ["session_id","driver_tla","lap_number"],
         partition_cols = ["season"]
@@ -140,6 +150,9 @@ BASE_TABLE_CONFIGS = {
             "givenName" : "given_name",
             "familyName" : "family_name",
             "dateOfBirth" : "date_of_birth",
+        },
+        computed_columns = {
+            "permanent_number" : "cast(permanent_number as int)"
         },
         primary_keys=["driver_id"]
     ),
@@ -172,6 +185,9 @@ BASE_TABLE_CONFIGS = {
         ingestion_type = DataIngestionType.BATCH_INGESTION,
         schema = F1Schemas.engine_supplier_statsf1_schema,
         write_strategy = WriteStrategy.MERGE,
+        computed_columns = {
+            "started_year" : "cast(started_time as int)"
+        },
         primary_keys = ["engine_manufacturer"]
     ),
     "DIM_CAR_STATSF1" : BaseIngestionConfig(

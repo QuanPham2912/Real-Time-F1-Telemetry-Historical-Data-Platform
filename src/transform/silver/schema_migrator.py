@@ -36,7 +36,7 @@ class DerivedLogic:
         status_dict = F1ResultStatus.get_code_mapping()
         #Create pyspark mapping table
         mapping_expr = create_map([lit(x) for x in chain(*status_dict.items())])
-        raw_df = sources[F1Topic.STATSF1_RACE_RESULT]
+        raw_df = sources[F1Topic.STATSF1_RACE_RESULT].withColumn("Total_lap", col("Total_lap").cast("int")) #We have to cast right here because we gonna use total lap to deduce max lap
         session_window = Window.partitionBy("Race_id")
         df_with_max_laps = raw_df.withColumn("max_laps", _max("Total_lap").over(session_window))
         
@@ -72,7 +72,10 @@ class DerivedLogic:
         result_df = raw_df.select(
             col("Circuit.circuitId"),
             col("Circuit.circuitName"),
-            col("Circuit.Location.*"),
+            col("Circuit.Location.lat").cast("float").alias("lat"),
+            col("Circuit.Location.long").cast("float").alias("long"),
+            col("Circuit.Location.locality").alias("locality"),
+            col("Circuit.Location.country").alias("country"),
             col("source"),
             current_timestamp().alias("silver_load_time")
         )
@@ -84,8 +87,8 @@ class DerivedLogic:
         raw_df = sources[F1Topic.JOLPICA_RACE]
         result_df = raw_df.select(
             col("race_id"),
-            col("season"),
-            col("round"),
+            col("season").cast("int").alias("season"),
+            col("round").cast("int").alias("round"),
             col("Circuit.circuitId"),
             col("raceName"),
             DerivedLogic.race_timestamp().alias("date"),
@@ -106,7 +109,7 @@ class DerivedLogic:
             # if adding more session type the data need to concern to that type of session
             DerivedLogic.race_timestamp().alias("date"),
             col("source"),
-            col("season"),
+            col("season").cast("int").alias("season"),
             current_timestamp().alias("silver_load_time")
         )
 
@@ -119,17 +122,19 @@ class DerivedLogic:
             col("race_id"),
             col("Driver.driverId").alias("driver_id"),
             col("Constructor.constructorId").alias("constructor_id"),
-            col("number"),
-            col("position"),
-            col("points"),
-            col("grid"),
-            col("laps"),
+            col("number").cast("int").alias("number"),
+            col("position").cast("int").alias("position"),
+            col("points").cast("float").alias("points"),
+            col("grid").cast("int").alias("grid"),
+            col("laps").cast("int").alias("laps"),
             col("status"),
-            col("Time.*"),
-            col("FastestLap.rank").alias("fastest_lap_rank"),
-            col("FastestLap.lap").alias("fastest_lap_number"),
+            col("Time.millis").cast("float").alias("millis"),
+            col("Time.time").alias("time"),
+            col("FastestLap.rank").cast("int").alias("fastest_lap_rank"),
+            col("FastestLap.lap").cast("int").alias("fastest_lap_number"),
             col("FastestLap.Time.time").alias("fastest_lap_time"),
-            col("FastestLap.AverageSpeed.*"),
+            col("FastestLap.AverageSpeed.units").alias("units"),
+            col("FastestLap.AverageSpeed.speed").cast("float").alias("speed"),
             col("source"),
             col("season"),
             current_timestamp().alias("silver_load_time")
@@ -150,7 +155,7 @@ class DerivedLogic:
             StructField("master_key", StringType(), True),
             StructField("confidence_score", FloatType(), True)
         ]))
-        def match_constructor_udf(statsf1_name :pd.Series, statsf1_nation :pd.Series):
+        def match_constructor_udf(statsf1_name :pd.Series, statsf1_nation :pd.Series) -> pd.DataFrame:
             results = []
             for name, nation in zip(statsf1_name, statsf1_nation):
                 if not name or pd.isna(name):
@@ -231,7 +236,7 @@ class DerivedLogic:
             StructField("master_key", StringType(), True),
             StructField("confidence_score", FloatType(), True)
         ]))
-        def match_driver_udf(statsf1_name :pd.Series, statsf1_constructor_id :pd.Series, statsf1_season :pd.Series):
+        def match_driver_udf(statsf1_name :pd.Series, statsf1_constructor_id :pd.Series, statsf1_season :pd.Series) -> pd.DataFrame:
             results = []
             for name, constructor_id , season in zip(statsf1_name, statsf1_constructor_id, statsf1_season):
                 if not name or pd.isna(name):

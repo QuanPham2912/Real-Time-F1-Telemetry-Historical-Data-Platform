@@ -260,7 +260,9 @@ def test_transform_fact_lap_estimates_missing_lap_boundaries(spark):
 	assert rows[2].is_lap_start_time_estimated is False
 	assert rows[2].lap_end_time == 20.0
 	assert rows[2].is_lap_end_time_estimated is True
-	assert rows[1].driver_key == -1
+	assert rows[1].driver_key == fact_result.select(
+		F.xxhash64("driver_id")
+	).first()[0]
 	assert rows[1].constructor_key == -1
 
 
