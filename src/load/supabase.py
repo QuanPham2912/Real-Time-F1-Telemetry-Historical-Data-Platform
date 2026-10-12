@@ -22,9 +22,12 @@ GOLD_TABLES = [
 class Supabase:
     def __init__(self,
                  sparkSession :SparkSession,
-                 goldBasePath :str = "s3a://f1-gold/",
+                 goldBasePath :str | None = None,
                  maxConnection :int = 4,
                  batchSize : int = 10000):
+        if goldBasePath is None:
+            load_dotenv()
+            goldBasePath = os.getenv("GOLD_BASE_PATH", "s3a://f1-gold/")
         self.sparkSession = sparkSession
         self.goldBasePath = goldBasePath
         self.maxConnection = maxConnection

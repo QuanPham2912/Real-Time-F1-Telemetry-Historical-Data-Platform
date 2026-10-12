@@ -29,15 +29,36 @@ class TestKafkaTopicManager:
         """Test that KafkaTopicManager is a subclass of BaseTopicManager."""
         assert issubclass(KafkaTopicManager, BaseTopicManager)
 
-    def test_init_with_default_bootstrap_servers(self, mock_admin_client):
-        """Test KafkaTopicManager initialization with default bootstrap servers."""
-        manager = KafkaTopicManager()
+    def test_init_with_bootstrap_servers_from_environment(
+        self, mock_admin_client, monkeypatch
+    ):
+        """Test KafkaTopicManager reads bootstrap servers from the environment."""
+        monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker-from-env:9092")
+        with patch("streaming.topic_manager.load_dotenv") as mock_load_dotenv:
+            KafkaTopicManager()
+
+        mock_load_dotenv.assert_called_once_with()
+        mock_admin_client.assert_called_once_with(
+            bootstrap_servers="broker-from-env:9092"
+        )
+
+    def test_init_with_default_bootstrap_servers_when_environment_is_missing(
+        self, mock_admin_client, monkeypatch
+    ):
+        """Test KafkaTopicManager uses the default when no bootstrap env is set."""
+        monkeypatch.delenv("KAFKA_BOOTSTRAP_SERVERS", raising=False)
+        with patch("streaming.topic_manager.load_dotenv"):
+            KafkaTopicManager()
+
         mock_admin_client.assert_called_once_with(bootstrap_servers="kafka1:19092")
 
-    def test_init_with_custom_bootstrap_servers(self, mock_admin_client):
-        """Test KafkaTopicManager initialization with custom bootstrap servers."""
+    def test_init_with_custom_bootstrap_servers(self, mock_admin_client, monkeypatch):
+        """Test KafkaTopicManager uses explicitly supplied bootstrap servers."""
+        monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker-from-env:9092")
         custom_servers = "kafka1:9092,kafka2:9092"
-        manager = KafkaTopicManager(bootstrap_servers=custom_servers)
+        with patch("streaming.topic_manager.load_dotenv") as mock_load_dotenv:
+            KafkaTopicManager(bootstrap_servers=custom_servers)
+        mock_load_dotenv.assert_not_called()
         mock_admin_client.assert_called_once_with(bootstrap_servers=custom_servers)
 
     def test_create_topic_success(self, kafka_manager):

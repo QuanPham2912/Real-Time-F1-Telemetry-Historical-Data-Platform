@@ -1,0 +1,30 @@
+-------- Supabase ---------
+SUPABASE_DB_HOST=
+SUPABASE_DB_PORT=
+SUPABASE_DB_NAME=
+SUPABASE_DB_USER=
+SUPABASE_DB_PASSWORD=
+
+-------- MinIO ------------
+# Inside Docker: http://minio:9000  |  From your own machine: http://localhost:9000
+S3_ENGPOINT = http://minio:9000
+S3_ACCESS_KEY = 
+S3_SECRET_KEY =
+# Inside Docker
+BRONZE_BASE_PATH = s3a://f1-bronze/
+SILVER_BASE_PATH = s3a://f1-silver/
+GOLD_BASE_PATH = s3a://f1-gold/
+
+-------- Spark ------------
+SPARK_MASTER = "local[*]"
+SPARK_DRIVER_MEMORY = 2g
+SPARK_SHUFFLE_PARTITIONS = 4
+SPARK_UI_ENABLED = false
+
+-------- Kafka ------------
+# Inside Docker: kafka1:19092  |  From your own machine: localhost:9092
+KAFKA_BOOTSTRAP_SERVERS = kafka1:19092
+
+-------- TimeZone ---------
+# Use your country IANA Time Zone ID to adjust schedule
+TIMEZONE =

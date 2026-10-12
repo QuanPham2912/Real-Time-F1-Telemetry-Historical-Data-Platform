@@ -35,6 +35,45 @@ def build_delta_reader(dataframe):
 	return reader
 
 
+def test_init_reads_gold_and_silver_paths_from_environment(monkeypatch):
+	monkeypatch.setenv("GOLD_BASE_PATH", "s3a://custom-gold/root/")
+	monkeypatch.setenv("SILVER_BASE_PATH", "s3a://custom-silver/root/")
+	load_dotenv = Mock()
+	monkeypatch.setattr(gold_job_module, "load_dotenv", load_dotenv)
+
+	job = gold_job_module.goldJob(SimpleNamespace())
+
+	load_dotenv.assert_called_once_with()
+	assert job.goldBasePath == "s3a://custom-gold/root/"
+	assert job.silverBasePath == "s3a://custom-silver/root/"
+
+
+def test_init_uses_default_paths_when_environment_is_missing(monkeypatch):
+	monkeypatch.delenv("GOLD_BASE_PATH", raising=False)
+	monkeypatch.delenv("SILVER_BASE_PATH", raising=False)
+	monkeypatch.setattr(gold_job_module, "load_dotenv", Mock())
+
+	job = gold_job_module.goldJob(SimpleNamespace())
+
+	assert job.goldBasePath == "s3a://f1-gold/"
+	assert job.silverBasePath == "s3a://f1-silver/"
+
+
+def test_init_explicit_paths_override_environment(monkeypatch):
+	monkeypatch.setenv("GOLD_BASE_PATH", "s3a://env-gold/")
+	monkeypatch.setenv("SILVER_BASE_PATH", "s3a://env-silver/")
+	monkeypatch.setattr(gold_job_module, "load_dotenv", Mock())
+
+	job = gold_job_module.goldJob(
+		SimpleNamespace(),
+		goldBasePath="s3a://explicit-gold/",
+		silverBasePath="s3a://explicit-silver/",
+	)
+
+	assert job.goldBasePath == "s3a://explicit-gold/"
+	assert job.silverBasePath == "s3a://explicit-silver/"
+
+
 def test_read_silver_source_loads_delta_from_silver_base_path():
 	dataframe = Mock(name="silver_dataframe")
 	reader = build_delta_reader(dataframe)

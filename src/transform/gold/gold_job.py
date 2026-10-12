@@ -3,13 +3,20 @@ from pyspark.sql import DataFrame
 from metadata.logger import ETLLogger
 from transform.common.writer import DeltaBatchWriter
 from transform.gold.gold_table_config import GOLD_TABLE_CONFIGS, GoldTableConfig
+from dotenv import load_dotenv
+import os
 
 logger = ETLLogger.get_logger()
 
 class goldJob:
     def __init__(self, sparkSession,
-                 goldBasePath :str = "s3a://f1-gold/",
-                 silverBasePath :str = "s3a://f1-silver/"):
+                 goldBasePath :str | None = None,
+                 silverBasePath :str | None = None):
+        load_dotenv()
+        if goldBasePath is None:
+            goldBasePath = os.getenv("GOLD_BASE_PATH", "s3a://f1-gold/")
+        if silverBasePath is None:
+            silverBasePath = os.getenv("SILVER_BASE_PATH", "s3a://f1-silver/")
         self.sparkSession = sparkSession
         self.goldBasePath = goldBasePath
         self.silverBasePath = silverBasePath

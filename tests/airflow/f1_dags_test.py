@@ -1,9 +1,10 @@
 import importlib.util
 import sys
 import types
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
+import pendulum
 import pytest
 
 
@@ -54,6 +55,7 @@ class FakeBashOperator:
 def dags_module(monkeypatch):
     FakeDAG.created_dags = []
     FakeDAG.active_dag = None
+    monkeypatch.setenv("TIMEZONE", "Asia/Ho_Chi_Minh")
 
     airflow_modules = {
         "airflow": types.ModuleType("airflow"),
@@ -115,7 +117,7 @@ def test_dag_configuration_and_tasks(
             else "Manual: load a range of seasons (start with 1-2 seasons, telemetry is large)"
         ),
         "schedule": schedule,
-        "start_date": datetime(2026, 1, 1),
+        "start_date": pendulum.datetime(2026, 1, 1, tz="Asia/Ho_Chi_Minh"),
         "catchup": False,
         "max_active_runs": 1,
         "default_args": {"retries": 1, "retry_delay": timedelta(minutes=5)},

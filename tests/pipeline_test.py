@@ -379,9 +379,7 @@ def test_run_bronze_processes_all_topics_in_order(monkeypatch):
 
     pipeline_module.run_bronze(spark)
 
-    bronze_job_class.assert_called_once_with(
-        sparkSession=spark, bootstrapServer=pipeline_module.KAFKA
-    )
+    bronze_job_class.assert_called_once_with(sparkSession=spark)
     assert job.write_to_bronze.call_args_list == [
         call(topic) for topic in pipeline_module.BRONZE_ORDER
     ]

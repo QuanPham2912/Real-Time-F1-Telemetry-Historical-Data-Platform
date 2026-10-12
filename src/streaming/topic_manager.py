@@ -3,6 +3,8 @@ from kafka.errors import TopicAlreadyExistsError
 from metadata.f1_topic import F1Topic
 from metadata.logger import ETLLogger
 from .base import BaseTopicManager
+import os
+from dotenv import load_dotenv
 
 logger = ETLLogger.get_logger()
 
@@ -25,7 +27,11 @@ class KafkaTopicManager(BaseTopicManager):
         F1Topic.FASTF1_WEATHER : {"num_partitions": 2, "replication_factor": 1}
     }
 
-    def __init__(self, bootstrap_servers: str = "kafka1:19092"):
+    def __init__(self, bootstrap_servers: str | None = None):
+        if bootstrap_servers is None:
+            load_dotenv()
+            bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka1:19092")
+
         self.admin_client = KafkaAdminClient(bootstrap_servers=bootstrap_servers)
 
     def create_topic(self, topic_name: str, num_partitions: int = 1, replication_factor: int = 1):

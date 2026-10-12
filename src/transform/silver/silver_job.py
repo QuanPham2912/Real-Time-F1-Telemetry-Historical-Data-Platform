@@ -7,13 +7,20 @@ from transform.common.writer import DeltaWriterEngine
 from metadata.IngestionMode import DataIngestionType
 from typing import Dict, Any, Union
 from pyspark.sql.types import StructType
+import os
+from dotenv import load_dotenv
 
 logger = ETLLogger.get_logger()
 
 class silverJob:
     def __init__(self, sparkSession,
-                 bronzeBasePath :str = "s3a://f1-bronze/",
-                 silverBasePath :str = "s3a://f1-silver/"):
+                 bronzeBasePath :str | None = None,
+                 silverBasePath :str | None = None):
+        load_dotenv()
+        if bronzeBasePath is None:
+            bronzeBasePath = os.getenv("BRONZE_BASE_PATH", "s3a://f1-bronze/")
+        if silverBasePath is None:
+            silverBasePath = os.getenv("SILVER_BASE_PATH", "s3a://f1-silver/")
         self.sparkSession = sparkSession
         self.bronzeBasePath = bronzeBasePath
         self.silverBasePath = silverBasePath
