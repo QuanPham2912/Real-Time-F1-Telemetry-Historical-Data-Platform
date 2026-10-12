@@ -3,16 +3,32 @@ from pyspark.sql.functions import col, lit, current_timestamp, to_date
 from metadata.logger import ETLLogger
 from metadata import f1_topic
 from transform.common.writer import DeltaStreamWriter
-import posixpath #To connect the path to delta lake
+import os
+import posixpath
+from dotenv import load_dotenv
+
 
 logger = ETLLogger.get_logger()
 
+
 class BronzeJob:
-    def __init__(self,  sparkSession,
-                 bootstrapServer: str="kafka1:19092",
-                 basePath :str="s3a://f1-bronze/"):
+    def __init__(
+        self,
+        sparkSession,
+        bootstrapServer: str | None = None,
+        basePath: str | None = None,
+    ):
+        if bootstrapServer is None or basePath is None:
+            load_dotenv()
+
         self.sparkSession = sparkSession
-        self.bootstrapServer = bootstrapServer
+        self.bootstrapServer = (
+            bootstrapServer
+            if bootstrapServer is not None
+            else os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka1:19092")
+        )
+        if basePath is None:
+            basePath = os.getenv("BRONZE_BASE_PATH", "s3a://f1-bronze/")
         self.basePath = basePath
 
     def read_from_kafka(self, topic: f1_topic.F1Topic) -> DataFrame:
@@ -44,4 +60,3 @@ class BronzeJob:
         partition_cols = ["ingest_date"]
         logger.info(f"Writing to bronze layer at path '{delta_path}' with checkpoint at '{checkpoint_path}'.")
         return DeltaStreamWriter.write_to_delta(bronze_df, delta_path, checkpoint_path, partitionCols=partition_cols)
-

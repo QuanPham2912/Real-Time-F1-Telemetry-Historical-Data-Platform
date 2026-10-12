@@ -336,7 +336,10 @@ def test_dynamic_partition_overwrite_sets_replace_condition(monkeypatch):
 	]
 
 
-def test_silver_writer_passes_replace_and_partition_columns(monkeypatch):
+def test_silver_writer_uses_environment_path_and_passes_replace_columns(monkeypatch):
+	monkeypatch.setenv("SILVER_BASE_PATH", "s3a://custom-silver/root/")
+	load_dotenv = Mock()
+	monkeypatch.setattr(writer_module, "load_dotenv", load_dotenv)
 	dataframe = Mock()
 	spark = Mock()
 	config = Mock(
@@ -351,9 +354,55 @@ def test_silver_writer_passes_replace_and_partition_columns(monkeypatch):
 
 	writer_module.DeltaWriterEngine.silver_writer(dataframe, spark, config)
 
+	load_dotenv.assert_called_once_with()
 	dynamic_overwrite.assert_called_once_with(
 		df=dataframe,
-		deltaPath="s3a://f1-silver/DIM_RACE",
+		deltaPath="s3a://custom-silver/root/DIM_RACE",
 		replaceConditionCols=["race_id"],
+		partitionCols=["season"],
+	)
+
+
+def test_silver_writer_uses_default_path_when_environment_is_missing(monkeypatch):
+	monkeypatch.delenv("SILVER_BASE_PATH", raising=False)
+	monkeypatch.setattr(writer_module, "load_dotenv", Mock())
+	dataframe = Mock()
+	config = Mock(
+		ingestion_type="batch_ingestion",
+		write_strategy="append",
+		table_name="DIM_RACE",
+		partition_cols=None,
+	)
+	write_to_delta = Mock()
+	monkeypatch.setattr(writer_module.DeltaBatchWriter, "write_to_delta", write_to_delta)
+
+	writer_module.DeltaWriterEngine.silver_writer(dataframe, Mock(), config)
+
+	write_to_delta.assert_called_once_with(
+		df=dataframe,
+		deltaPath="s3a://f1-silver/DIM_RACE",
+		partitionCols=None,
+	)
+
+
+def test_silver_writer_uses_environment_path_for_stream_and_checkpoint(monkeypatch):
+	monkeypatch.setenv("SILVER_BASE_PATH", "s3a://custom-silver/root/")
+	monkeypatch.setattr(writer_module, "load_dotenv", Mock())
+	dataframe = Mock()
+	config = Mock(
+		ingestion_type="streaming_ingestion",
+		write_strategy="append",
+		table_name="FACT_LAP",
+		partition_cols=["season"],
+	)
+	write_to_delta = Mock()
+	monkeypatch.setattr(writer_module.DeltaStreamWriter, "write_to_delta", write_to_delta)
+
+	writer_module.DeltaWriterEngine.silver_writer(dataframe, Mock(), config)
+
+	write_to_delta.assert_called_once_with(
+		df=dataframe,
+		deltaPath="s3a://custom-silver/root/FACT_LAP",
+		checkPointPath="s3a://custom-silver/root/checkpoints/FACT_LAP",
 		partitionCols=["season"],
 	)

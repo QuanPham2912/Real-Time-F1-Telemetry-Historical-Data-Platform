@@ -1,14 +1,20 @@
 from .base import baseProducer
 import json
+import os
 from typing import Iterable, Callable, Optional
 from kafka import KafkaProducer as KafkaClient
 from metadata import f1_topic
 from metadata.logger import ETLLogger
+from dotenv import load_dotenv
 
 logger = ETLLogger.get_logger()
 
 class KafkaProducer(baseProducer):
-    def __init__(self, bootstrap_servers: str = "kafka1:19092"):
+    def __init__(self, bootstrap_servers: str | None = None):
+        if bootstrap_servers is None:
+            load_dotenv()
+            bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka1:19092")
+
         self.producer = KafkaClient(bootstrap_servers=bootstrap_servers,
                                     value_serializer=lambda v: json.dumps(v).encode('utf-8'),
                                     key_serializer=lambda k: k.encode('utf-8') if k else None,

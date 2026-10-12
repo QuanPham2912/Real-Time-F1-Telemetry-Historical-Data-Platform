@@ -19,5 +19,8 @@ __pycache__/
 .pytest_cache/
 htmlcov/
 
+# Skip log file
+*.log
+
 .cache/
 cache/

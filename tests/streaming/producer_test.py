@@ -13,14 +13,38 @@ class TestKafkaProducer:
 		return producer
 
 	@patch("streaming.producer.KafkaClient")
-	def test_is_base_producer_and_initializes_kafka_client(self, mock_client):
-		producer = KafkaProducer()
+	def test_is_base_producer_and_initializes_kafka_client_from_environment(
+		self, mock_client, monkeypatch
+	):
+		monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker-from-env:9092")
+		with patch("streaming.producer.load_dotenv") as mock_load_dotenv:
+			producer = KafkaProducer()
 
 		assert isinstance(producer, baseProducer)
+		mock_load_dotenv.assert_called_once_with()
 		mock_client.assert_called_once()
-		assert mock_client.call_args.kwargs["bootstrap_servers"] == "kafka1:19092"
+		assert mock_client.call_args.kwargs["bootstrap_servers"] == "broker-from-env:9092"
 		assert mock_client.call_args.kwargs["batch_size"] == 32768
 		assert mock_client.call_args.kwargs["linger_ms"] == 10
+
+	@patch("streaming.producer.KafkaClient")
+	def test_initializes_with_default_bootstrap_server_when_environment_is_missing(
+		self, mock_client, monkeypatch
+	):
+		monkeypatch.delenv("KAFKA_BOOTSTRAP_SERVERS", raising=False)
+		with patch("streaming.producer.load_dotenv"):
+			KafkaProducer()
+
+		assert mock_client.call_args.kwargs["bootstrap_servers"] == "kafka1:19092"
+
+	@patch("streaming.producer.KafkaClient")
+	def test_explicit_bootstrap_server_overrides_environment(self, mock_client, monkeypatch):
+		monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker-from-env:9092")
+		with patch("streaming.producer.load_dotenv") as mock_load_dotenv:
+			KafkaProducer(bootstrap_servers="explicit-broker:9092")
+
+		mock_load_dotenv.assert_not_called()
+		assert mock_client.call_args.kwargs["bootstrap_servers"] == "explicit-broker:9092"
 
 	def test_send_sends_topic_value_message_and_key(self):
 		mock_client = MagicMock()

@@ -7,10 +7,16 @@ Two DAGs that only call `python pipeline.py <stage>`; all logic lives in src/pip
 One task per layer. Table ordering inside Silver/Gold is handled by SILVER_ORDER / GOLD_ORDER
 in pipeline.py, so the DAG stays small and Spark only starts once per layer.
 """
-from datetime import datetime, timedelta
+import os
+from datetime import timedelta
 
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.sdk import DAG
+import pendulum
+from dotenv import load_dotenv
+
+load_dotenv()
+local_tz = pendulum.timezone(os.getenv("TIMEZONE", "UTC"))
 
 CMD = "cd /opt/airflow/src && python pipeline.py"
 
@@ -41,8 +47,8 @@ def add_pipeline(extract_cmd_args: str):
 with DAG(
     dag_id="f1_incremental",
     description="Load the latest finished race through Bronze -> Silver -> Gold -> Supabase",
-    schedule="0 6 * * 1",  # Monday 06:00 UTC
-    start_date=datetime(2026, 1, 1),
+    schedule="0 6 * * 1",  # Monday 06:00 in TIMEZONE
+    start_date=pendulum.datetime(2026, 1, 1, tz=local_tz),
     catchup=False,
     max_active_runs=1,
     default_args=DEFAULT_ARGS,
@@ -56,7 +62,7 @@ with DAG(
     dag_id="f1_backfill",
     description="Manual: load a range of seasons (start with 1-2 seasons, telemetry is large)",
     schedule=None,
-    start_date=datetime(2026, 1, 1),
+    start_date=pendulum.datetime(2026, 1, 1, tz=local_tz),
     catchup=False,
     max_active_runs=1,
     default_args=DEFAULT_ARGS,

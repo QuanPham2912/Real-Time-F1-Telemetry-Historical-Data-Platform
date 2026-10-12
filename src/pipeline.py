@@ -9,7 +9,8 @@ from metadata.f1_topic import F1Topic as T
 from metadata.logger import ETLLogger
  
 logger = ETLLogger.get_logger()
- 
+from dotenv import load_dotenv
+load_dotenv() 
 KAFKA = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka1:19092")
 
 #EXECUTION PLAN
@@ -184,7 +185,7 @@ def run_extract(args):
 def run_bronze(spark):
     from transform.bronze.bronze_job import BronzeJob
 
-    bronze = BronzeJob(sparkSession = spark, bootstrapServer = KAFKA)
+    bronze = BronzeJob(sparkSession=spark)
     for topic in BRONZE_ORDER:
         logger.info(f"[BRONZE] {topic.value}")
         bronze.write_to_bronze(topic).awaitTermination() # Have "avaiableNow" so it gonna end by it self
@@ -297,4 +298,3 @@ if __name__ == "__main__":
 
 
     
-

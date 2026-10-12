@@ -6,9 +6,10 @@ from metadata.logger import ETLLogger
 import posixpath
 from transform.silver.silver_table_config import Base
 from pyspark.sql.functions import row_number, col
+from dotenv import load_dotenv
+import os
 
 logger = ETLLogger.get_logger()
-silverBasePath :str = "s3a://f1-silver/"
 
 class DeltaStreamWriter:
     @staticmethod
@@ -147,11 +148,13 @@ class DeltaWriterEngine:
         spark : SparkSession,
         config : Base,
     ):
+        load_dotenv()
+        silver_base_path = os.getenv("SILVER_BASE_PATH", "s3a://f1-silver/")
         mode = config.ingestion_type.lower()
         strategy = config.write_strategy.lower()
-        silver_path = posixpath.join(silverBasePath, config.table_name)
+        silver_path = posixpath.join(silver_base_path, config.table_name)
         if mode == "streaming_ingestion":
-            checkpoint_path = posixpath.join(silverBasePath, "checkpoints", config.table_name)
+            checkpoint_path = posixpath.join(silver_base_path, "checkpoints", config.table_name)
             if strategy == "append":
                 return DeltaStreamWriter.write_to_delta(df = df,
                                                         deltaPath = silver_path,

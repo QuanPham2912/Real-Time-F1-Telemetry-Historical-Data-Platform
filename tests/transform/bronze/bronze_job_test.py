@@ -20,6 +20,58 @@ def build_kafka_reader():
 	return reader
 
 
+def test_init_reads_bootstrap_server_from_environment(monkeypatch):
+	monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker-from-env:9092")
+
+	with patch("transform.bronze.bronze_job.load_dotenv") as mock_load_dotenv:
+		job = bronze_module.BronzeJob(Mock())
+
+	mock_load_dotenv.assert_called_once_with()
+	assert job.bootstrapServer == "broker-from-env:9092"
+
+
+def test_init_explicit_bootstrap_server_overrides_environment(monkeypatch):
+	monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker-from-env:9092")
+
+	with patch("transform.bronze.bronze_job.load_dotenv") as mock_load_dotenv:
+		job = bronze_module.BronzeJob(
+			Mock(),
+			bootstrapServer="explicit-broker:9092",
+			basePath="s3a://explicit-bronze/",
+		)
+
+	mock_load_dotenv.assert_not_called()
+	assert job.bootstrapServer == "explicit-broker:9092"
+
+
+def test_init_uses_default_bootstrap_server_when_environment_is_missing(monkeypatch):
+	monkeypatch.delenv("KAFKA_BOOTSTRAP_SERVERS", raising=False)
+
+	with patch("transform.bronze.bronze_job.load_dotenv"):
+		job = bronze_module.BronzeJob(Mock())
+
+	assert job.bootstrapServer == "kafka1:19092"
+
+
+def test_init_reads_base_path_from_environment(monkeypatch):
+	monkeypatch.setenv("BRONZE_BASE_PATH", "s3a://custom-bronze/root/")
+
+	with patch("transform.bronze.bronze_job.load_dotenv") as mock_load_dotenv:
+		job = bronze_module.BronzeJob(Mock(), bootstrapServer="broker:9092")
+
+	mock_load_dotenv.assert_called_once_with()
+	assert job.basePath == "s3a://custom-bronze/root/"
+
+
+def test_init_uses_default_base_path_when_environment_is_missing(monkeypatch):
+	monkeypatch.delenv("BRONZE_BASE_PATH", raising=False)
+
+	with patch("transform.bronze.bronze_job.load_dotenv"):
+		job = bronze_module.BronzeJob(Mock(), bootstrapServer="broker:9092")
+
+	assert job.basePath == "s3a://f1-bronze/"
+
+
 def test_read_from_kafka_configures_stream_source():
 	reader = build_kafka_reader()
 	spark_session = Mock()
@@ -85,7 +137,11 @@ def test_write_to_bronze_builds_paths_and_delegates_to_delta_writer(monkeypatch)
 	raw_dataframe = Mock(name="raw_dataframe")
 	bronze_dataframe = Mock(name="bronze_dataframe")
 	spark_session = Mock()
-	job = bronze_module.BronzeJob(spark_session, basePath="s3a://f1-bronze/")
+	job = bronze_module.BronzeJob(
+		spark_session,
+		bootstrapServer="broker:9092",
+		basePath="s3a://custom-bronze/root/",
+	)
 	read_from_kafka = Mock(return_value=raw_dataframe)
 	add_bronze_metadata = Mock(return_value=bronze_dataframe)
 	delta_writer = Mock(return_value="streaming-query")
@@ -102,11 +158,11 @@ def test_write_to_bronze_builds_paths_and_delegates_to_delta_writer(monkeypatch)
 	add_bronze_metadata.assert_called_once_with(raw_dataframe, F1Topic.FASTF1_WEATHER)
 	delta_writer.assert_called_once_with(
 		bronze_dataframe,
-		"s3a://f1-bronze/f1.fastf1.stream.weather",
-		"s3a://f1-bronze/checkpoints/f1.fastf1.stream.weather",
+		"s3a://custom-bronze/root/f1.fastf1.stream.weather",
+		"s3a://custom-bronze/root/checkpoints/f1.fastf1.stream.weather",
 		partitionCols=["ingest_date"],
 	)
 	logger.info.assert_called_once_with(
-		"Writing to bronze layer at path 's3a://f1-bronze/f1.fastf1.stream.weather' "
-		"with checkpoint at 's3a://f1-bronze/checkpoints/f1.fastf1.stream.weather'."
+		"Writing to bronze layer at path 's3a://custom-bronze/root/f1.fastf1.stream.weather' "
+		"with checkpoint at 's3a://custom-bronze/root/checkpoints/f1.fastf1.stream.weather'."
 	)
