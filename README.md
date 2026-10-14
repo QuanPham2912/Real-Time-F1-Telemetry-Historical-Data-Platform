@@ -63,13 +63,13 @@ What makes this project more than a simple ETL script:
 - **Three separate sources, one model.** A REST API, an HTML scraper and a telemetry library are normalised behind a common extractor interface and published to Kafka topics following a consistent naming convention (`f1.<source>.<dim|fact|stream>.<entity>`).
 - **Entity resolution with fuzzy matching.** Drivers and constructors from StatsF1 are matched to Jolpica master records by pandas UDFs built on `rapidfuzz`. Every match is stored in a crosswalk table (`XWALK_DRIVER`, `XWALK_CONSTRUCTOR`) together with a **confidence score**, so matches are auditable. Constructors are resolved first, and the result is used as extra context when matching drivers.
 - **Batch and streaming in the same pipeline.** Dimension data is ingested in batch, while laps, weather and telemetry are consumed with Spark Structured Streaming (`availableNow` trigger), so the same code supports both one-off backfills and incremental runs.
-- **Write strategy chosen per table, not per project.** Immutable telemetry and weather use `APPEND`; laps use `MERGE` because a lap can be changed after the fact (for example deleted for track limits); race-level tables use `DYNAMIC_OVERWRITE` to replace only the affected race partition. Strategies, keys and partitions are declared in configuration objects.
+- **Write strategy chosen per table, not per project (silver).** Immutable telemetry and weather use `APPEND`; laps use `MERGE` because a lap can be changed after the fact (for example deleted for track limits); race-level tables use `DYNAMIC_OVERWRITE` to replace only the affected race partition. Strategies, keys and partitions are declared in configuration objects.
 - **Time-series alignment.** Telemetry samples are assigned to laps with a range join against each lap's valid window, and missing lap start/end times are reconstructed with window functions (`lag` / `lead`) and flagged with `is_lap_start_time_estimated` / `is_lap_end_time_estimated`. Everything is expressed in session-relative seconds so telemetry, laps and weather share one time axis.
-- **Deterministic surrogate keys and unknown members.** Gold keys are `xxhash64` of the natural key, so reloads are idempotent and no sequence or lookup is needed. Every dimension has an unknown-member row (`-1`) so that unmatched records never disappear from fact tables.
+- **Deterministic surrogate keys and unknown members.** Gold keys are `xxhash64` of the natural key, so reloads are idempotent and no sequence or lookup is needed. Every dimension has an unknown-member row (`-1`) so that unmatched records never disappear from fact tables except dim session.
 - **Deliberate dimensional design.** A classic star schema (no snowflaking) with four fact tables at different grains. The chassis is kept as a degenerate dimension because it changes every season, while engine suppliers remain a dimension because they are shared across teams and years.
-- **Delta Lake on S3-compatible storage.** Bronze, Silver and Gold are Delta tables on MinIO (`s3a://`), partitioned by season for the large fact tables.
+- **Delta Lake on S3-compatible storage.** Bronze, Silver and Gold are Delta tables on RustFS (`s3a://`), partitioned by season for the large fact tables.
 - **Orchestration and fault tolerance.** Airflow 3 DAGs for incremental (weekly) and backfill runs; extractors continue past failed rounds and report them at the end (`--allow-partial`), and the Supabase load verifies row counts after each table.
-- **Everything runs in Docker Compose.** Kafka (KRaft), Conduktor Console, Spark, MinIO, Airflow and the ETL image start from one command.
+- **Everything runs in Docker Compose.** Kafka (KRaft), Conduktor Console, Spark, RustFS, Airflow and the ETL image start from one command.
 
 ## Install
 
@@ -77,6 +77,7 @@ What makes this project more than a simple ETL script:
 
 - [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/) v2
 - At least 8 GB of RAM available to Docker (Spark and Kafka are memory hungry)
+> however, if you cannot provide that much RAM but still want to run the pipeline at a minimum level, there is still a way.
 - A [Supabase](https://supabase.com/) project (PostgreSQL) for the final load step
 
 ### Setup
@@ -94,7 +95,7 @@ What makes this project more than a simple ETL script:
    cp _env .env
    ```
 
-3. Edit `.env` and fill in your Supabase connection details. These five variables are **required**:
+3. Edit `.env` and fill in your Supabase connection details. These four variables are **required**:
 
     Taking connection details in **Connect** -> **Direct** -> **Connection Method** : `Session pooler` -> **Type** : `JDBC`
     
@@ -110,24 +111,35 @@ What makes this project more than a simple ETL script:
 
    | Variable | Default | Description |
    | -------- | ------- | ----------- |
-   | `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | MinIO in Docker | S3-compatible storage for the Delta tables |
+   | `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | RustFS in Docker | S3-compatible storage for the Delta tables |
    | `KAFKA_BOOTSTRAP_SERVERS` | `kafka1:19092` | Kafka broker address |
    | `SPARK_MASTER` | `local[*]` | Spark master URL |
    | `SPARK_DRIVER_MEMORY` | `2g` | Spark driver memory |
    | `SPARK_SHUFFLE_PARTITIONS` | `4` | Number of shuffle partitions |
    | `SPARK_UI_ENABLED` | `false` | Enable the Spark UI |
-   | `BRONZE_BASE_PATH` | `s3a://f1-bronze/` | Path for saving bronze data (MinIO) |
-   | `SILVER_BASE_PATH` | `s3a://f1-silver/` | Path for saving silver data (MinIO) |
-   | `GOLD_BASE_PATH` | `s3a://f1-gold/` | Path for saving gold data (MinIO) |
+   | `BRONZE_BASE_PATH` | `s3a://f1-bronze/` | Path for saving bronze data (RustFS) |
+   | `SILVER_BASE_PATH` | `s3a://f1-silver/` | Path for saving silver data (RustFS) |
+   | `GOLD_BASE_PATH` | `s3a://f1-gold/` | Path for saving gold data (RustFS) |
    | `TIMEZONE` | `UTC` | Your time zone |
 
    > **Supabase only.** The load stage (`src/load/supabase.py`) is designed and tested against Supabase Postgres. It writes through Spark JDBC with SSL enforced (`sslmode=require`), so a database that does not accept SSL connections will not work without changing the connection properties. Other PostgreSQL providers may work if they accept SSL, but they have not been tested. The Gold tables are fully refreshed (truncated and reloaded) on every run, so create them first as described in [Database Setup](#database-setup).
 
-5. Start the infrastructure:
+4. Start the infrastructure:
 
+  If you have at least 8 GB RAM available
+  
    ```sh
    docker compose up -d --build
    ```
+
+   If you have less than 8 GB RAM available 
+
+   ```sh
+   docker compose up -d kafka1 s3 s3-init
+   ```
+   
+   > Note that when using this method, you must set up `SPARK_MASTER` in `.env` as `local[*]`. And with this method you cannot run pipeline using airflow; instead, you are required to run it via the CLI. 
+   
 
    On Linux, set your user ID first so Airflow can write to its mounted folders:
 
@@ -135,14 +147,14 @@ What makes this project more than a simple ETL script:
    echo "AIRFLOW_UID=$(id -u)" >> .env
    ```
 
-6. Open the web interfaces:
+5. Open the web interfaces:
 
    | Service | URL | Notes |
    | ------- | --- | ----- |
    | Airflow | http://localhost:8082 | Default login `airflow` / `airflow` |
    | Conduktor Console | http://localhost:8080 | Kafka topic management |
    | Spark Master UI | http://localhost:8081 | |
-   | MinIO Console | http://localhost:9001 | Default login `minioadmin` / `minioadmin123` |
+   | S3 Console | http://localhost:9001 | Default login `f1admin` / `f1admin123` |
 
    The `f1-bronze`, `f1-silver` and `f1-gold` buckets are created automatically on startup.
 
@@ -359,6 +371,7 @@ docker compose --profile etl run --rm etl python pipeline.py silver
 docker compose --profile etl run --rm etl python pipeline.py gold
 docker compose --profile etl run --rm etl python pipeline.py load
 ```
+> It is recommended to use a stage-by-stage execution approach if the machine lacks sufficient RAM and CPU resources.
 
 #### Extract options
 
@@ -402,7 +415,7 @@ flowchart LR
     S --> G[Gold<br/>star schema]
     G --> P[(Supabase<br/>Postgres)]
     P --> D[Cognos<br/>dashboard]
-    M[(MinIO / S3)] -.stores.- B
+    M[(RustFS / S3)] -.stores.- B
     M -.stores.- S
     M -.stores.- G
     AF[Airflow] -.orchestrates.- E
@@ -685,11 +698,11 @@ erDiagram
         int season
     }
     FACT_LAP {
-        bigint session_key PK, FK
-        int permanent_number PK
-        bigint lap_number PK
-        bigint driver_key FK
-        bigint constructor_key FK
+        bigint session_key
+        int permanent_number
+        bigint lap_number
+        bigint driver_key
+        bigint constructor_key
         float lap_time
         float sector_1_time
         float sector_2_time
@@ -709,11 +722,11 @@ erDiagram
         int season
     }
     FACT_TELEMETRY {
-        bigint session_key PK, FK
-        int permanent_number PK
-        timestamp event_time PK
-        float session_time PK
-        bigint driver_key FK
+        bigint session_key
+        int permanent_number
+        timestamp event_time
+        float session_time
+        bigint driver_key
         bigint lap_number
         float lap_time
         double speed
@@ -729,8 +742,8 @@ erDiagram
         int season
     }
     FACT_WEATHER {
-        bigint session_key PK, FK
-        float session_time PK
+        bigint session_key
+        float session_time
         double air_temp
         double track_temp
         double humidity
@@ -796,7 +809,7 @@ An IBM Cognos Analytics dashboard sits on top of the Gold layer and lets you exp
 │   └── metadata/              # Kafka topics, logger, shared enums
 ├── Dockerfile                 # Image for the ETL container
 ├── Dockerfile.airflow         # Airflow image with Java + project dependencies
-├── docker-compose.yml         # Kafka, Spark, MinIO, Airflow, Conduktor
+├── docker-compose.yml         # Kafka, Spark, RustFS, Airflow, Conduktor
 ├── requirements.txt
 └── _env                       # Environment variable template
 ```
