@@ -11,11 +11,11 @@ class F1SparkSession:
         load_dotenv()
         master = master or os.getenv("SPARK_MASTER", "local[*]")
         s3_endpoint = os.getenv("S3_ENDPOINT", "http://minio:9000")
-        s3_access_key = os.getenv("S3_ACCESS_KEY", "minioadmin")
-        s3_secret_key = os.getenv("S3_SECRET_KEY", "minioadmin123")
+        s3_access_key = os.getenv("S3_ACCESS_KEY", "f1admin")
+        s3_secret_key = os.getenv("S3_SECRET_KEY", "f1admin123")
 
         if not s3_access_key or not s3_secret_key or not s3_endpoint:
-            logger.error("Missing MINIO connection info")
+            logger.error("Missing S3 connection info")
             raise ValueError
         logger.info(f"Initializing SparkSession with app name '{app_name}' and master '{master}'.")
         return (
@@ -39,8 +39,8 @@ class F1SparkSession:
             .config("spark.sql.shuffle.partitions", os.getenv("SPARK_SHUFFLE_PARTITIONS", "4"))
             .config("spark.ui.enabled", os.getenv("SPARK_UI_ENABLED", "false"))
 
-            # MinIO Connection
-            .config("spark.hadoop.fs.s3a.endpoint", s3_endpoint)  # Dùng "http://minio:9000" nếu chạy TRONG Docker
+            # S3-compatible storage (RustFS)
+            .config("spark.hadoop.fs.s3a.endpoint", s3_endpoint) 
             .config("spark.hadoop.fs.s3a.access.key", s3_access_key)
             .config("spark.hadoop.fs.s3a.secret.key", s3_secret_key)
             .config("spark.hadoop.fs.s3a.path.style.access", "true")

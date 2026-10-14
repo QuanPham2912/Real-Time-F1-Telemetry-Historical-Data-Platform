@@ -75,11 +75,11 @@ CREATE TABLE public.fact_result (
 );
 
 CREATE TABLE public.fact_lap (
-    session_key bigint NOT NULL,
+    session_key bigint,
     driver_key bigint,
     constructor_key bigint,
-    permanent_number integer NOT NULL,
-    lap_number bigint NOT NULL,
+    permanent_number integer,
+    lap_number bigint,
     lap_time real,
     sector_1_time real,
     sector_2_time real,
@@ -96,23 +96,18 @@ CREATE TABLE public.fact_lap (
     pit_out_time real,
     track_status text,
     is_accurate boolean,
-    season integer,
-    CONSTRAINT fact_lap_pkey PRIMARY KEY (
-        session_key,
-        permanent_number,
-        lap_number
-    )
+    season integer
 );
 
 CREATE TABLE public.fact_telemetry (
-    session_key bigint NOT NULL,
+    session_key bigint,
     driver_key bigint,
-    permanent_number integer NOT NULL,
+    permanent_number integer,
     lap_number bigint,
     event_time timestamp
     with
         time zone NOT NULL,
-        session_time real NOT NULL,
+        session_time real,
         lap_time real,
         speed double precision,
         throttle double precision,
@@ -124,18 +119,12 @@ CREATE TABLE public.fact_telemetry (
         x double precision,
         y double precision,
         z double precision,
-        season integer,
-        CONSTRAINT fact_telemetry_pkey PRIMARY KEY (
-            session_key,
-            permanent_number,
-            event_time,
-            session_time
-        )
+        season integer
 );
 
 CREATE TABLE public.fact_weather (
-    session_key bigint NOT NULL,
-    session_time real NOT NULL,
+    session_key bigint,
+    session_time real,
     air_temp double precision,
     track_temp double precision,
     humidity double precision,
@@ -143,6 +132,19 @@ CREATE TABLE public.fact_weather (
     wind_speed double precision,
     wind_direction integer,
     pressure double precision,
-    season integer,
-    CONSTRAINT fact_weather_pkey PRIMARY KEY (session_key, session_time)
+    season integer
 );
+
+CREATE INDEX ON public.fact_lap (
+    session_key,
+    driver_key,
+    lap_number
+);
+
+CREATE INDEX ON public.fact_telemetry (
+    session_key,
+    driver_key,
+    lap_number
+);
+
+CREATE INDEX ON public.fact_weather (session_key);

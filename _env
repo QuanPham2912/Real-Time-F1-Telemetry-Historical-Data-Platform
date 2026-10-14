@@ -6,8 +6,8 @@ SUPABASE_DB_USER=
 SUPABASE_DB_PASSWORD=
 
 -------- MinIO ------------
-# Inside Docker: http://minio:9000  |  From your own machine: http://localhost:9000
-S3_ENGPOINT = http://minio:9000
+# Inside Docker: http://s3:9000  |  From your own machine: http://localhost:9000
+S3_ENGPOINT = http://s3:9000
 S3_ACCESS_KEY = 
 S3_SECRET_KEY =
 # Inside Docker
