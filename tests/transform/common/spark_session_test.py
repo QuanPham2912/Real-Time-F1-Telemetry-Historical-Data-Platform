@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import pytest
+
 import transform.common.spark_session as spark_module
 
 
@@ -82,8 +84,8 @@ def test_get_session_uses_default_values_and_builds_session(monkeypatch):
         ("config", "spark.sql.shuffle.partitions", "4"),
         ("config", "spark.ui.enabled", "false"),
         ("config", "spark.hadoop.fs.s3a.endpoint", "http://minio:9000"),
-        ("config", "spark.hadoop.fs.s3a.access.key", "minioadmin"),
-        ("config", "spark.hadoop.fs.s3a.secret.key", "minioadmin123"),
+        ("config", "spark.hadoop.fs.s3a.access.key", "f1admin"),
+        ("config", "spark.hadoop.fs.s3a.secret.key", "f1admin123"),
         ("config", "spark.hadoop.fs.s3a.path.style.access", "true"),
         ("config", "spark.hadoop.fs.s3a.connection.ssl.enabled", "false"),
         ("config", "spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem"),
@@ -113,3 +115,45 @@ def test_get_session_uses_custom_values(monkeypatch):
         ("config", "spark.sql.session.timeZone", "UTC"),
         ("getOrCreate",),
     ]
+
+
+def test_get_session_enables_ssl_for_https_s3_endpoint(monkeypatch):
+    builder = FakeBuilder(object())
+    fake_session = SimpleNamespace(builder=builder)
+
+    monkeypatch.setattr(spark_module, "load_dotenv", lambda: None)
+    monkeypatch.setattr(spark_module, "SparkSession", fake_session)
+    monkeypatch.setattr(spark_module, "logger", Mock())
+    monkeypatch.setenv("S3_ENDPOINT", "https://storage.example.com")
+    monkeypatch.setenv("S3_ACCESS_KEY", "custom-access")
+    monkeypatch.setenv("S3_SECRET_KEY", "custom-secret")
+
+    spark_module.F1SparkSession.get_session()
+
+    assert (
+        "config",
+        "spark.hadoop.fs.s3a.connection.ssl.enabled",
+        "true",
+    ) in builder.calls
+    assert (
+        "config",
+        "spark.hadoop.fs.s3a.access.key",
+        "custom-access",
+    ) in builder.calls
+    assert (
+        "config",
+        "spark.hadoop.fs.s3a.secret.key",
+        "custom-secret",
+    ) in builder.calls
+
+
+def test_get_session_rejects_missing_s3_connection_info(monkeypatch):
+    logger = Mock()
+    monkeypatch.setattr(spark_module, "load_dotenv", lambda: None)
+    monkeypatch.setattr(spark_module, "logger", logger)
+    monkeypatch.setenv("S3_ENDPOINT", "")
+
+    with pytest.raises(ValueError):
+        spark_module.F1SparkSession.get_session()
+
+    logger.error.assert_called_once_with("Missing S3 connection info")
