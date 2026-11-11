@@ -2,30 +2,38 @@ import posixpath
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import col, from_json, expr, current_timestamp, lit
 from metadata.logger import ETLLogger
-from transform.silver.silver_table_config import BaseIngestionConfig, BASE_TABLE_CONFIGS, DerivedTableConfig, DERIVED_TABLE_CONFIGS
-from transform.common.writer import DeltaWriterEngine
+from transform.silver.silver_table_config import (
+    BaseIngestionConfig,
+    DerivedTableConfig,
+)
+from transform.silver.silver_writer import DeltaWriterEngine
 from metadata.IngestionMode import DataIngestionType
 from typing import Dict, Any, Union
 from pyspark.sql.types import StructType
-import os
-from dotenv import load_dotenv
+from metadata.setting import get_settings
 
 logger = ETLLogger.get_logger()
+settings = get_settings()
+
 
 class silverJob:
-    def __init__(self, sparkSession,
-                 bronzeBasePath :str | None = None,
-                 silverBasePath :str | None = None):
-        load_dotenv()
+    def __init__(
+        self,
+        sparkSession,
+        bronzeBasePath: str | None = None,
+        silverBasePath: str | None = None,
+    ):
         if bronzeBasePath is None:
-            bronzeBasePath = os.getenv("BRONZE_BASE_PATH", "s3a://f1-bronze/")
+            bronzeBasePath = settings.bronze_base_path
         if silverBasePath is None:
-            silverBasePath = os.getenv("SILVER_BASE_PATH", "s3a://f1-silver/")
+            silverBasePath = settings.silver_base_path
         self.sparkSession = sparkSession
         self.bronzeBasePath = bronzeBasePath
         self.silverBasePath = silverBasePath
 
-    def read_bronze_source(self, source_topic :str, ingestion_type :str, schema: StructType) -> DataFrame:
+    def read_bronze_source(
+        self, source_topic: str, ingestion_type: str, schema: StructType
+    ) -> DataFrame:
         bronze_path = posixpath.join(self.bronzeBasePath, source_topic)
         if ingestion_type == DataIngestionType.STREAMING_INGESTION:
             bronze_df = self.sparkSession.readStream.format("delta").load(bronze_path)
@@ -35,22 +43,26 @@ class silverJob:
         parsed_df = bronze_df.withColumn("data", from_json(col("kafka_value"), schema))
 
         flattened_df = parsed_df.select(
-                    col("data.*"),
-                    col("kafka_timestamp"),
-                    col("ingest_time").alias("bronze_ingest_time"),
-                    current_timestamp().alias("silver_load_time")
-                )
+            col("data.*"),
+            col("kafka_timestamp"),
+            col("ingest_time").alias("bronze_ingest_time"),
+            current_timestamp().alias("silver_load_time"),
+        )
 
         return flattened_df
 
-    def apply_transformation(self, flattened_df : DataFrame, config: Union[BaseIngestionConfig, DerivedTableConfig]) -> DataFrame:
-         #Apply Column Mapping
+    def apply_transformation(
+        self,
+        flattened_df: DataFrame,
+        config: Union[BaseIngestionConfig, DerivedTableConfig],
+    ) -> DataFrame:
+        # Apply Column Mapping
         if config.column_mapping:
             for old_col, new_col in config.column_mapping.items():
                 if old_col in flattened_df.columns:
                     flattened_df = flattened_df.withColumnRenamed(old_col, new_col)
-        
-        #Convert all column names to lowercase
+
+        # Convert all column names to lowercase
         flattened_df = flattened_df.toDF(*[c.lower() for c in flattened_df.columns])
         return flattened_df
 
@@ -58,65 +70,83 @@ class silverJob:
 
         bronze_path = posixpath.join(self.bronzeBasePath, config.source_topic)
         silver_path = posixpath.join(self.silverBasePath, config.table_name)
-        checkpoint_path = posixpath.join(self.silverBasePath, "checkpoints", config.table_name)
+        checkpoint_path = posixpath.join(
+            self.silverBasePath, "checkpoints", config.table_name
+        )
 
-        logger.info(f"Processing Silver Base Table: {config.table_name} from {bronze_path}")
+        logger.info(
+            f"Processing Silver Base Table: {config.table_name} from {bronze_path}"
+        )
 
-        flattened_df = self.read_bronze_source(source_topic=config.source_topic,
-                                               ingestion_type=config.ingestion_type,
-                                               schema=config.schema)
+        flattened_df = self.read_bronze_source(
+            source_topic=config.source_topic,
+            ingestion_type=config.ingestion_type,
+            schema=config.schema,
+        )
         flattened_df = self.apply_transformation(flattened_df, config)
 
-        #Using Computed Columns
+        # Using Computed Columns
         if config.computed_columns:
             for col_name, sql_expr in config.computed_columns.items():
                 if col_name in flattened_df.columns:
                     flattened_df = flattened_df.withColumn(col_name, expr(sql_expr))
 
-        #Drop NA rows
+        # Drop NA rows
         flattened_df = flattened_df.dropna(subset=config.primary_keys)
 
-        #Deduplicate
+        # Deduplicate
         if config.ingestion_type == DataIngestionType.BATCH_INGESTION:
             flattened_df = flattened_df.dropDuplicates(config.primary_keys)
-        #Because we are using dropDuplicatesWithinWatermark, we need to set watermark on the time column to ensure that we are only considering the latest records for each primary key within the watermark duration. This is important for streaming ingestion to avoid duplicates in the silver layer.
-        #But we only use it for append mode because for merge mode, we are using the latest record based on kafka_timestamp to merge into the silver layer.
-        elif config.ingestion_type == DataIngestionType.STREAMING_INGESTION and config.write_strategy == "append":
-            flattened_df = flattened_df.withWatermark(config.time_column, "30 minutes")\
-                                        .dropDuplicatesWithinWatermark(config.primary_keys)
+        # Because we are using dropDuplicatesWithinWatermark, we need to set watermark on the time column to ensure that we are only considering the latest records for each primary key within the watermark duration. This is important for streaming ingestion to avoid duplicates in the silver layer.
+        # But we only use it for append mode because for merge mode, we are using the latest record based on kafka_timestamp to merge into the silver layer.
+        elif (
+            config.ingestion_type == DataIngestionType.STREAMING_INGESTION
+            and config.write_strategy == "append"
+        ):
+            flattened_df = flattened_df.withWatermark(
+                config.time_column, "30 minutes"
+            ).dropDuplicatesWithinWatermark(config.primary_keys)
 
-        logger.info(f"Writing to silver layer at path '{silver_path}' with checkpoint at '{checkpoint_path}'.")
+        logger.info(
+            f"Writing to silver layer at path '{silver_path}' with checkpoint at '{checkpoint_path}'."
+        )
 
-        return DeltaWriterEngine.silver_writer(df = flattened_df,
-                                      spark = self.sparkSession,
-                                      config = config)
+        return DeltaWriterEngine.silver_writer(
+            df=flattened_df, spark=self.sparkSession, config=config
+        )
 
     def process_derived_table(self, config: DerivedTableConfig):
         silver_path = posixpath.join(self.silverBasePath, config.table_name)
-        checkpoint_path = posixpath.join(self.silverBasePath, "checkpoints", config.table_name)
+        checkpoint_path = posixpath.join(
+            self.silverBasePath, "checkpoints", config.table_name
+        )
 
         logger.info(f"Processing Silver derived Table: {config.table_name}")
 
-
         sources = {}
         if config.source_table:
-            for config_source_topic, config_schema  in config.source_table.items():
-                flattened_df = self.read_bronze_source(source_topic = config_source_topic,
-                                                       ingestion_type = config.ingestion_type,
-                                                       schema = config_schema)
+            for config_source_topic, config_schema in config.source_table.items():
+                flattened_df = self.read_bronze_source(
+                    source_topic=config_source_topic,
+                    ingestion_type=config.ingestion_type,
+                    schema=config_schema,
+                )
 
                 sources[config_source_topic] = flattened_df
 
         if config.silver_source_table:
-            for source_topic, schema  in config.silver_source_table.items():
+            for source_topic, schema in config.silver_source_table.items():
                 source_silver_path = posixpath.join(self.silverBasePath, source_topic)
                 if config.ingestion_type == DataIngestionType.STREAMING_INGESTION:
-                    flattened_df = self.sparkSession.readStream.format("delta").load(source_silver_path)
+                    flattened_df = self.sparkSession.readStream.format("delta").load(
+                        source_silver_path
+                    )
                 elif config.ingestion_type == DataIngestionType.BATCH_INGESTION:
-                    flattened_df = self.sparkSession.read.format("delta").load(source_silver_path)
-        
+                    flattened_df = self.sparkSession.read.format("delta").load(
+                        source_silver_path
+                    )
+
                 sources[source_topic] = flattened_df
-        
 
         transformed_df = config.transformation_fn(sources)
 
@@ -126,13 +156,17 @@ class silverJob:
 
         if config.ingestion_type == DataIngestionType.BATCH_INGESTION:
             transformed_df = transformed_df.dropDuplicates(config.primary_keys)
-        elif config.ingestion_type == DataIngestionType.STREAMING_INGESTION and config.write_strategy == "append":
-            transformed_df = transformed_df.withWatermark(config.time_column, "30 minutes")\
-                                            .dropDuplicatesWithinWatermark(config.primary_keys)
+        elif (
+            config.ingestion_type == DataIngestionType.STREAMING_INGESTION
+            and config.write_strategy == "append"
+        ):
+            transformed_df = transformed_df.withWatermark(
+                config.time_column, "30 minutes"
+            ).dropDuplicatesWithinWatermark(config.primary_keys)
 
-        logger.info(f"Writing to silver layer at path '{silver_path}' with checkpoint at '{checkpoint_path}'.")
-        return DeltaWriterEngine.silver_writer(df = transformed_df,
-                                      spark = self.sparkSession,
-                                      config = config)
-
-        
+        logger.info(
+            f"Writing to silver layer at path '{silver_path}' with checkpoint at '{checkpoint_path}'."
+        )
+        return DeltaWriterEngine.silver_writer(
+            df=transformed_df, spark=self.sparkSession, config=config
+        )

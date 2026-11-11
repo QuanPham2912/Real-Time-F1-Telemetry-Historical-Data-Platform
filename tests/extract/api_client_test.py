@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import pytest
 
 import extract.api_client as api_client_module
-from extract.api_client import JolicaClient
+from extract.api_client import Endpoint, JolpicaClient
 
 
 def make_response(payload):
@@ -12,14 +12,24 @@ def make_response(payload):
 	return response
 
 
-def test_extract_result_requests_and_returns_results(monkeypatch):
+def test_fetch_requests_endpoint_and_applies_lineage_tags(monkeypatch):
 	response = make_response(
 		{"MRData": {"RaceTable": {"Races": [{"Results": [{"position": "1"}]}]}}}
 	)
 	get = Mock(return_value=response)
 	monkeypatch.setattr(api_client_module.requests, "get", get)
 
-	result = JolicaClient().extract_result(2024, 3)
+	client = JolpicaClient()
+	result = client.fetch(
+		Endpoint(
+			key="Result",
+			path="{season}/{round}/results.json",
+			records_path=["RaceTable", "Races", 0, "Results"],
+			tags=["race_id", "source", "season"],
+		),
+		2024,
+		3,
+	)
 
 	assert result == [{
 		"position": "1",
@@ -33,14 +43,22 @@ def test_extract_result_requests_and_returns_results(monkeypatch):
 	response.raise_for_status.assert_called_once_with()
 
 
-def test_extract_driver_requests_and_returns_drivers(monkeypatch):
+def test_fetch_only_adds_configured_lineage_tags(monkeypatch):
 	response = make_response(
 		{"MRData": {"DriverTable": {"Drivers": [{"driverId": "max_verstappen"}]}}}
 	)
 	get = Mock(return_value=response)
 	monkeypatch.setattr(api_client_module.requests, "get", get)
+	client = JolpicaClient()
+	endpoint = Endpoint(
+		key="Driver",
+		path="{season}/drivers.json",
+		records_path=["DriverTable", "Drivers"],
+		tags=["source"],
+		cache_per_season=False,
+	)
 
-	result = JolicaClient().extract_driver(2024)
+	result = client.fetch(endpoint, 2024)
 
 	assert result == [{"driverId": "max_verstappen", "source": "jolpica_api"}]
 	get.assert_called_once_with(
@@ -49,64 +67,36 @@ def test_extract_driver_requests_and_returns_drivers(monkeypatch):
 	response.raise_for_status.assert_called_once_with()
 
 
-def test_extract_race_requests_and_returns_races(monkeypatch):
-	response = make_response(
-		{"MRData": {"RaceTable": {"Races": [{"round": "3"}]}}}
+def test_extract_uses_configured_endpoints(monkeypatch):
+	client = JolpicaClient()
+	endpoints = (
+		Endpoint("Race", "{season}/{round}.json", ["RaceTable", "Races"]),
+		Endpoint("Driver", "{season}/drivers.json", ["DriverTable", "Drivers"]),
 	)
-	get = Mock(return_value=response)
-	monkeypatch.setattr(api_client_module.requests, "get", get)
-
-	result = JolicaClient().extract_race(2024, 3)
-
-	assert result == [{"round": "3", "race_id": "2024_3", "source": "jolpica_api"}]
-	get.assert_called_once_with("https://api.jolpi.ca/ergast/f1/2024/3.json", timeout=10)
-	response.raise_for_status.assert_called_once_with()
-
-
-def test_extract_constructor_requests_and_returns_constructors(monkeypatch):
-	response = make_response(
-		{"MRData": {"ConstructorTable": {"Constructors": [{"constructorId": "alpine"}]}}}
+	results = {"Race": [{"round": "3"}], "Driver": [{"driverId": "max_verstappen"}]}
+	monkeypatch.setattr(client, "convert_endpoints", Mock(return_value=endpoints))
+	monkeypatch.setattr(
+		client,
+		"fetch",
+		Mock(side_effect=[results["Race"], results["Driver"]]),
 	)
-	get = Mock(return_value=response)
-	monkeypatch.setattr(api_client_module.requests, "get", get)
 
-	result = JolicaClient().extract_constructor(2024)
-
-	assert result == [{"constructorId": "alpine", "source": "jolpica_api"}]
-	get.assert_called_once_with(
-		"https://api.jolpi.ca/ergast/f1/2024/constructors.json", timeout=10
-	)
-	response.raise_for_status.assert_called_once_with()
+	assert client.extract(2024, 3) == results
+	assert client.fetch.call_args_list == [
+		((endpoints[0], 2024, 3),),
+		((endpoints[1], 2024, 3),),
+	]
 
 
-def test_extract_combines_race_driver_and_result_data(monkeypatch):
-	client = JolicaClient()
-	race = [{"round": "3"}]
-	drivers = [{"driverId": "max_verstappen"}]
-	constructors = [{"constructorId": "alpine"}]
-	results = [{"position": "1"}]
-	monkeypatch.setattr(client, "extract_race", Mock(return_value=race))
-	monkeypatch.setattr(client, "extract_driver", Mock(return_value=drivers))
-	monkeypatch.setattr(client, "extract_constructor", Mock(return_value=constructors))
-	monkeypatch.setattr(client, "extract_result", Mock(return_value=results))
-
-	assert client.extract(2024, 3) == {
-		"Race": race,
-		"Driver": drivers,
-		"Constructor": constructors,
-		"Results": results,
-	}
-	client.extract_race.assert_called_once_with(2024, 3)
-	client.extract_driver.assert_called_once_with(2024)
-	client.extract_constructor.assert_called_once_with(2024)
-	client.extract_result.assert_called_once_with(2024, 3)
-
-
-def test_extract_result_propagates_http_errors(monkeypatch):
+def test_fetch_propagates_http_errors(monkeypatch):
 	response = make_response({})
 	error = RuntimeError("source unavailable")
 	response.raise_for_status.side_effect = error
 	monkeypatch.setattr(api_client_module.requests, "get", Mock(return_value=response))
 
 	with pytest.raises(RuntimeError, match="source unavailable"):
-		JolicaClient().extract_result(2024, 3)
+		JolpicaClient().fetch(
+			Endpoint("Race", "{season}/{round}.json", ["RaceTable", "Races"]),
+			2024,
+			3,
+		)

@@ -1,6 +1,7 @@
 from unittest.mock import Mock, call, patch
 import sys
 from types import ModuleType
+from types import SimpleNamespace
 
 delta_package = ModuleType("delta")
 delta_package.__path__ = []
@@ -21,53 +22,66 @@ def build_kafka_reader():
 
 
 def test_init_reads_bootstrap_server_from_environment(monkeypatch):
-	monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker-from-env:9092")
+	monkeypatch.setattr(
+		bronze_module,
+		"settings",
+		SimpleNamespace(
+			kafka_bootstrap_servers="broker-from-settings:9092",
+			bronze_base_path="s3a://f1-bronze/",
+		),
+	)
+	job = bronze_module.BronzeJob(Mock())
 
-	with patch("transform.bronze.bronze_job.load_dotenv") as mock_load_dotenv:
-		job = bronze_module.BronzeJob(Mock())
-
-	mock_load_dotenv.assert_called_once_with()
-	assert job.bootstrapServer == "broker-from-env:9092"
+	assert job.bootstrapServer == "broker-from-settings:9092"
 
 
 def test_init_explicit_bootstrap_server_overrides_environment(monkeypatch):
-	monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker-from-env:9092")
-
-	with patch("transform.bronze.bronze_job.load_dotenv") as mock_load_dotenv:
-		job = bronze_module.BronzeJob(
-			Mock(),
-			bootstrapServer="explicit-broker:9092",
-			basePath="s3a://explicit-bronze/",
-		)
-
-	mock_load_dotenv.assert_not_called()
+	job = bronze_module.BronzeJob(
+		Mock(),
+		bootstrapServer="explicit-broker:9092",
+		basePath="s3a://explicit-bronze/",
+	)
 	assert job.bootstrapServer == "explicit-broker:9092"
 
 
 def test_init_uses_default_bootstrap_server_when_environment_is_missing(monkeypatch):
-	monkeypatch.delenv("KAFKA_BOOTSTRAP_SERVERS", raising=False)
-
-	with patch("transform.bronze.bronze_job.load_dotenv"):
-		job = bronze_module.BronzeJob(Mock())
+	monkeypatch.setattr(
+		bronze_module,
+		"settings",
+		SimpleNamespace(
+			kafka_bootstrap_servers="kafka1:19092",
+			bronze_base_path="s3a://f1-bronze/",
+		),
+	)
+	job = bronze_module.BronzeJob(Mock())
 
 	assert job.bootstrapServer == "kafka1:19092"
 
 
 def test_init_reads_base_path_from_environment(monkeypatch):
-	monkeypatch.setenv("BRONZE_BASE_PATH", "s3a://custom-bronze/root/")
+	monkeypatch.setattr(
+		bronze_module,
+		"settings",
+		SimpleNamespace(
+			kafka_bootstrap_servers="kafka1:19092",
+			bronze_base_path="s3a://custom-bronze/root/",
+		),
+	)
+	job = bronze_module.BronzeJob(Mock(), bootstrapServer="broker:9092")
 
-	with patch("transform.bronze.bronze_job.load_dotenv") as mock_load_dotenv:
-		job = bronze_module.BronzeJob(Mock(), bootstrapServer="broker:9092")
-
-	mock_load_dotenv.assert_called_once_with()
 	assert job.basePath == "s3a://custom-bronze/root/"
 
 
 def test_init_uses_default_base_path_when_environment_is_missing(monkeypatch):
-	monkeypatch.delenv("BRONZE_BASE_PATH", raising=False)
-
-	with patch("transform.bronze.bronze_job.load_dotenv"):
-		job = bronze_module.BronzeJob(Mock(), bootstrapServer="broker:9092")
+	monkeypatch.setattr(
+		bronze_module,
+		"settings",
+		SimpleNamespace(
+			kafka_bootstrap_servers="kafka1:19092",
+			bronze_base_path="s3a://f1-bronze/",
+		),
+	)
+	job = bronze_module.BronzeJob(Mock(), bootstrapServer="broker:9092")
 
 	assert job.basePath == "s3a://f1-bronze/"
 
@@ -144,11 +158,12 @@ def test_write_to_bronze_builds_paths_and_delegates_to_delta_writer(monkeypatch)
 	)
 	read_from_kafka = Mock(return_value=raw_dataframe)
 	add_bronze_metadata = Mock(return_value=bronze_dataframe)
-	delta_writer = Mock(return_value="streaming-query")
+	writer = Mock()
+	writer.write.return_value = "streaming-query"
+	job.writer = writer
 	logger = Mock()
 	monkeypatch.setattr(job, "read_from_kafka", read_from_kafka)
 	monkeypatch.setattr(job, "add_bronze_metadata", add_bronze_metadata)
-	monkeypatch.setattr(bronze_module.DeltaStreamWriter, "write_to_delta", delta_writer)
 	monkeypatch.setattr(bronze_module, "logger", logger)
 
 	result = job.write_to_bronze(F1Topic.FASTF1_WEATHER)
@@ -156,10 +171,10 @@ def test_write_to_bronze_builds_paths_and_delegates_to_delta_writer(monkeypatch)
 	assert result == "streaming-query"
 	read_from_kafka.assert_called_once_with(F1Topic.FASTF1_WEATHER)
 	add_bronze_metadata.assert_called_once_with(raw_dataframe, F1Topic.FASTF1_WEATHER)
-	delta_writer.assert_called_once_with(
-		bronze_dataframe,
-		"s3a://custom-bronze/root/f1.fastf1.stream.weather",
-		"s3a://custom-bronze/root/checkpoints/f1.fastf1.stream.weather",
+	writer.write.assert_called_once_with(
+		df=bronze_dataframe,
+		deltaPath="s3a://custom-bronze/root/f1.fastf1.stream.weather",
+		checkPointPath="s3a://custom-bronze/root/checkpoints/f1.fastf1.stream.weather",
 		partitionCols=["ingest_date"],
 	)
 	logger.info.assert_called_once_with(

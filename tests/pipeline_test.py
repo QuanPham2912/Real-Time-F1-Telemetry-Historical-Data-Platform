@@ -9,6 +9,7 @@ import pytest
 
 import pipeline as pipeline_module
 from metadata.f1_topic import F1Topic
+from extract.registry import available_sources
 
 
 def fake_module(monkeypatch, name, **attributes):
@@ -23,12 +24,33 @@ def install_extract_dependencies(monkeypatch):
     jolpica = Mock()
     statsf1 = Mock()
     fastf1 = Mock()
+    fastf1.extract = lambda season, round, session_type: None
+    jolpica.topic_mapping = {
+        "Race": F1Topic.JOLPICA_RACE,
+        "Driver": F1Topic.JOLPICA_DRIVER,
+        "Constructor": F1Topic.JOLPICA_CONSTRUCTOR,
+        "Result": F1Topic.JOLPICA_RACE_RESULT,
+    }
+    statsf1.topic_mapping = {
+        "Driver": F1Topic.STATSF1_DRIVER_STATSF1,
+        "Constructor": F1Topic.STATSF1_CONSTRUCTOR_STATSF1,
+        "EngineSupplier": F1Topic.STATSF1_ENGINE_SUPPLIER_STATSF1,
+        "Car": F1Topic.STATSF1_CAR_STATSF1,
+        "Result": F1Topic.STATSF1_RACE_RESULT,
+    }
+    fastf1.topic_mapping = {
+        "lap_data": F1Topic.FASTF1_LAP,
+        "weather_data": F1Topic.FASTF1_WEATHER,
+        "telemetry_stream": F1Topic.FASTF1_TELEMETRY,
+    }
     producer = Mock()
     topic_manager = Mock()
     topic_manager.__enter__ = Mock(return_value=topic_manager)
     topic_manager.__exit__ = Mock(return_value=False)
 
-    fake_module(monkeypatch, "extract.api_client", JolicaClient=Mock(return_value=jolpica))
+    fake_module(
+        monkeypatch, "extract.api_client", JolpicaClient=Mock(return_value=jolpica)
+    )
     fake_module(
         monkeypatch, "extract.fastf1_extractor", FastF1Extractor=Mock(return_value=fastf1)
     )
@@ -137,7 +159,7 @@ def test_build_parser_parses_stage_defaults_and_options():
     assert extract.season == "current"
     assert extract.to_season is None
     assert extract.round == "latest"
-    assert extract.source == "jolpica,statsf1,fastf1"
+    assert extract.source == ",".join(available_sources())
     assert extract.sessions == "R"
     assert extract.allow_partial is False
     assert extract.sleep == 1.0
@@ -183,7 +205,7 @@ def test_run_extract_initializes_sources_publishes_records_and_closes(monkeypatc
         "Race": {"round": "1"},
         "Driver": None,
         "Constructor": [],
-        "Results": [{"position": "1"}],
+        "Result": [{"position": "1"}],
     }
     statsf1.run.return_value = {
         "Driver": [{"driverId": "driver"}],
@@ -227,17 +249,17 @@ def test_run_extract_initializes_sources_publishes_records_and_closes(monkeypatc
         call(topic_name=F1Topic.JOLPICA_DRIVER, messages=[]),
         call(topic_name=F1Topic.JOLPICA_CONSTRUCTOR, messages=[]),
         call(topic_name=F1Topic.JOLPICA_RACE_RESULT, messages=[{"position": "1"}]),
+        call(topic_name=F1Topic.FASTF1_LAP, messages=[{"lap": 1}]),
+        call(topic_name=F1Topic.FASTF1_WEATHER, messages=[]),
+        call(topic_name=F1Topic.FASTF1_TELEMETRY, messages=[{"speed": 300}]),
+        call(topic_name=F1Topic.FASTF1_LAP, messages=[{"lap": 1}]),
+        call(topic_name=F1Topic.FASTF1_WEATHER, messages=[]),
+        call(topic_name=F1Topic.FASTF1_TELEMETRY, messages=[{"speed": 300}]),
         call(topic_name=F1Topic.STATSF1_DRIVER_STATSF1, messages=[{"driverId": "driver"}]),
         call(topic_name=F1Topic.STATSF1_CONSTRUCTOR_STATSF1, messages=[]),
         call(topic_name=F1Topic.STATSF1_ENGINE_SUPPLIER_STATSF1, messages=[]),
         call(topic_name=F1Topic.STATSF1_CAR_STATSF1, messages=[]),
         call(topic_name=F1Topic.STATSF1_RACE_RESULT, messages=[{"position": "2"}]),
-        call(topic_name=F1Topic.FASTF1_LAP, messages=[{"lap": 1}]),
-        call(topic_name=F1Topic.FASTF1_WEATHER, messages=[]),
-        call(topic_name=F1Topic.FASTF1_TELEMETRY, messages=[{"speed": 300}]),
-        call(topic_name=F1Topic.FASTF1_LAP, messages=[{"lap": 1}]),
-        call(topic_name=F1Topic.FASTF1_WEATHER, messages=[]),
-        call(topic_name=F1Topic.FASTF1_TELEMETRY, messages=[{"speed": 300}]),
     ]
     assert producer.flush.call_count == 4
     producer.close.assert_called_once_with()
@@ -283,16 +305,13 @@ def test_run_extract_normalizes_source_names_and_season_range(monkeypatch):
 
 def test_run_extract_rejects_unknown_source(monkeypatch):
     *_, topic_manager_class = install_extract_dependencies(monkeypatch)
-    logger = Mock()
-    monkeypatch.setattr(pipeline_module, "logger", logger)
     args = pipeline_module.build_parser().parse_args(
         ["extract", "--source", "jolpica,unknown"]
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Unknown source"):
         pipeline_module.run_extract(args)
 
-    logger.error.assert_called_once()
     topic_manager_class.assert_not_called()
 
 

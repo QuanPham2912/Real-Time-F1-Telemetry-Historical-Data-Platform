@@ -1,22 +1,26 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 from metadata.logger import ETLLogger
+from metadata.f1_topic import F1Topic
 
 logger = ETLLogger.get_logger()
+
 
 class Extractor(ABC):
     """
     Parent class for all source of data(api, statsF1, fastF1, ...)
     """
 
+    topic_mapping: dict[str, F1Topic] = {}
+
     def __init__(self, source_name: str):
         self.source_name = source_name
-    
+
     @abstractmethod
     def extract(self, **kwargs) -> dict[str, list[dict]]:
-        """ Each child class defines its own way of extracting data from its respective source """
+        """Each child class defines its own way of extracting data from its respective source"""
         raise NotImplementedError
-    
+
     def run(self, **kwargs) -> dict[str, list[dict]]:
         """
         Log and error handling during extraction

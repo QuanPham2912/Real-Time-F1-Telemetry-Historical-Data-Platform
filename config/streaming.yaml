@@ -1,0 +1,39 @@
+topics:
+  "f1.jolpica.dim.driver":
+    num_partitions : 1
+    replication_factor : 1
+  "f1.jolpica.dim.constructor":
+    num_partitions : 1
+    replication_factor : 1
+  "f1.jolpica.dim.race":
+    num_partitions : 1
+    replication_factor : 1
+  "f1.jolpica.fact.race_result":
+    num_partitions : 2
+    replication_factor : 1
+  
+  "f1.statsf1.dim.driver":
+    num_partitions : 1
+    replication_factor : 1
+  "f1.statsf1.dim.constructor":
+    num_partitions : 1
+    replication_factor : 1
+  "f1.statsf1.dim.engine_supplier":
+    num_partitions : 1
+    replication_factor : 1
+  "f1.statsf1.dim.car":
+    num_partitions : 1
+    replication_factor : 1
+  "f1.statsf1.fact.race_result":
+    num_partitions : 2
+    replication_factor : 1
+  
+  "f1.fastf1.fact.lap":
+    num_partitions : 3
+    replication_factor : 1
+  "f1.fastf1.fact.telemetry":
+    num_partitions : 6
+    replication_factor : 1
+  "f1.fastf1.stream.weather":
+    num_partitions : 2
+    replication_factor : 1

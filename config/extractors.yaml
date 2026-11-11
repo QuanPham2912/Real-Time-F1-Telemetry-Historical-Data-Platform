@@ -1,0 +1,85 @@
+fastf1:
+  cache_dir: "/tmp/fastf1_cache"
+  columns:
+    lap:
+      - Driver
+      - LapNumber
+      - DriverNumber
+      - LapTime
+      - LapStartTime
+      - Time
+      - Stint
+      - Compound
+      - TyreLife
+      - FreshTyre
+      - Sector1Time
+      - Sector2Time
+      - Sector3Time
+      - PitInTime
+      - PitOutTime
+      - TrackStatus
+      - IsAccurate
+    lap_time:
+      - LapTime 
+      - Sector1Time 
+      - Sector2Time
+      - Sector3Time
+      - PitInTime
+      - PitOutTime
+      - LapStartTime
+      - Time
+
+    weather:
+      - Time 
+      - AirTemp
+      - TrackTemp
+      - Humidity
+      - Rainfall
+      - WindSpeed
+      - WindDirection
+      - Pressure
+    weather_time:
+      - Time
+    
+    telemetry:
+      - PermanentNumber
+      - Date
+      - Time
+      - SessionTime
+      - Speed
+      - Throttle
+      - Brake
+      - RPM
+      - nGear
+      - DRS
+      - Distance
+      - X
+      - Y
+      - Z
+    telemetry_time:
+      - Date
+      - Time
+      - SessionTime
+
+api_client:
+  endpoints:
+    - key : Race
+      path : "{season}/{round}.json"
+      records_path : ["RaceTable", "Races"]
+      tags : ["race_id", "source"]
+      cache_per_season : false
+    - key : Result
+      path : "{season}/{round}/results.json"
+      records_path : ["RaceTable", "Races", 0, "Results"]
+      tags : ["race_id", "source", "season"]
+      cache_per_season : false
+    - key : Driver
+      path : "{season}/drivers.json"
+      records_path : ["DriverTable", "Drivers"]
+      tags : ["source"]
+      cache_per_season : true
+    - key : Constructor
+      path : "{season}/constructors.json"
+      records_path : ["ConstructorTable", "Constructors"]
+      tags : ["source"]
+      cache_per_season : true
