@@ -346,6 +346,12 @@ Each DAG runs: `extract (3 sources in parallel) → bronze → silver → gold �
 
 ### Run with the CLI
 
+Build the ETL image first (and again whenever you change `requirements.txt` or `Dockerfile`):
+
+```sh
+docker compose --profile etl build etl
+```
+
 All pipeline logic lives in `src/pipeline.py`. Run stages through the `etl` Docker Compose profile:
 
 ```sh
