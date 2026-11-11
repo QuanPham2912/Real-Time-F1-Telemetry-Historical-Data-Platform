@@ -35,18 +35,25 @@ def test_get_session_uses_default_values_and_builds_session(monkeypatch):
     builder = FakeBuilder(session)
     fake_session = SimpleNamespace(builder=builder)
 
-    monkeypatch.setattr(spark_module, "load_dotenv", lambda: None)
-    for variable in (
-        "SPARK_MASTER",
-        "S3_ENDPOINT",
-        "S3_ACCESS_KEY",
-        "S3_SECRET_KEY",
-        "SPARK_DRIVER_MEMORY",
-        "SPARK_SHUFFLE_PARTITIONS",
-        "SPARK_UI_ENABLED",
-    ):
-        monkeypatch.delenv(variable, raising=False)
-
+    monkeypatch.setattr(
+        spark_module,
+        "settings",
+        SimpleNamespace(
+            spark_master="local[*]",
+            spark_driver_memory="2g",
+            spark_shuffle_partitions="4",
+            spark_ui_enabled="false",
+        ),
+    )
+    monkeypatch.setattr(
+        spark_module,
+        "s3",
+        SimpleNamespace(
+            endpoint="http://minio:9000",
+            access_key="f1admin",
+            secret_key="f1admin123",
+        ),
+    )
     monkeypatch.setattr(spark_module, "logger", logger)
     monkeypatch.setattr(spark_module, "SparkSession", fake_session)
 
@@ -100,6 +107,25 @@ def test_get_session_uses_custom_values(monkeypatch):
     builder = FakeBuilder(session)
     fake_session = SimpleNamespace(builder=builder)
 
+    monkeypatch.setattr(
+        spark_module,
+        "settings",
+        SimpleNamespace(
+            spark_master="local[*]",
+            spark_driver_memory="2g",
+            spark_shuffle_partitions="4",
+            spark_ui_enabled="false",
+        ),
+    )
+    monkeypatch.setattr(
+        spark_module,
+        "s3",
+        SimpleNamespace(
+            endpoint="http://minio:9000",
+            access_key="f1admin",
+            secret_key="f1admin123",
+        ),
+    )
     monkeypatch.setattr(spark_module, "logger", logger)
     monkeypatch.setattr(spark_module, "SparkSession", fake_session)
 
@@ -121,12 +147,27 @@ def test_get_session_enables_ssl_for_https_s3_endpoint(monkeypatch):
     builder = FakeBuilder(object())
     fake_session = SimpleNamespace(builder=builder)
 
-    monkeypatch.setattr(spark_module, "load_dotenv", lambda: None)
+    monkeypatch.setattr(
+        spark_module,
+        "settings",
+        SimpleNamespace(
+            spark_master="local[*]",
+            spark_driver_memory="2g",
+            spark_shuffle_partitions="4",
+            spark_ui_enabled="false",
+        ),
+    )
+    monkeypatch.setattr(
+        spark_module,
+        "s3",
+        SimpleNamespace(
+            endpoint="https://storage.example.com",
+            access_key="custom-access",
+            secret_key="custom-secret",
+        ),
+    )
     monkeypatch.setattr(spark_module, "SparkSession", fake_session)
     monkeypatch.setattr(spark_module, "logger", Mock())
-    monkeypatch.setenv("S3_ENDPOINT", "https://storage.example.com")
-    monkeypatch.setenv("S3_ACCESS_KEY", "custom-access")
-    monkeypatch.setenv("S3_SECRET_KEY", "custom-secret")
 
     spark_module.F1SparkSession.get_session()
 
@@ -149,9 +190,22 @@ def test_get_session_enables_ssl_for_https_s3_endpoint(monkeypatch):
 
 def test_get_session_rejects_missing_s3_connection_info(monkeypatch):
     logger = Mock()
-    monkeypatch.setattr(spark_module, "load_dotenv", lambda: None)
+    monkeypatch.setattr(
+        spark_module,
+        "settings",
+        SimpleNamespace(
+            spark_master="local[*]",
+            spark_driver_memory="2g",
+            spark_shuffle_partitions="4",
+            spark_ui_enabled="false",
+        ),
+    )
+    monkeypatch.setattr(
+        spark_module,
+        "s3",
+        SimpleNamespace(endpoint="", access_key="", secret_key=""),
+    )
     monkeypatch.setattr(spark_module, "logger", logger)
-    monkeypatch.setenv("S3_ENDPOINT", "")
 
     with pytest.raises(ValueError):
         spark_module.F1SparkSession.get_session()

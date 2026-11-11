@@ -1,3 +1,5 @@
+import os
+from types import SimpleNamespace
 from unittest.mock import Mock, call
 
 import pytest
@@ -8,7 +10,6 @@ from load.supabase import GOLD_TABLES, Supabase
 
 @pytest.fixture
 def configure_supabase_env(monkeypatch):
-    monkeypatch.setattr(supabase_module, "load_dotenv", Mock())
     for name, value in {
         "SUPABASE_DB_HOST": "db.example.test",
         "SUPABASE_DB_NAME": "f1",
@@ -17,6 +18,22 @@ def configure_supabase_env(monkeypatch):
         "SUPABASE_DB_PORT": "6543",
     }.items():
         monkeypatch.setenv(name, value)
+
+    def configure_db_settings():
+        monkeypatch.setattr(
+            supabase_module,
+            "db_config",
+            SimpleNamespace(
+                host=os.getenv("SUPABASE_DB_HOST"),
+                name=os.getenv("SUPABASE_DB_NAME"),
+                user=os.getenv("SUPABASE_DB_USER"),
+                password=os.getenv("SUPABASE_DB_PASSWORD"),
+                port=os.getenv("SUPABASE_DB_PORT", "5432"),
+            ),
+        )
+
+    configure_db_settings()
+    return configure_db_settings
 
 
 @pytest.fixture
@@ -34,7 +51,7 @@ def supabase(spark, configure_supabase_env):
     )
 
 
-def test_init_reads_connection_environment_and_sets_jdbc_properties(supabase):
+def test_init_uses_connection_settings_and_sets_jdbc_properties(supabase):
     assert supabase.jdbc_url.startswith(
         "jdbc:postgresql://db.example.test:6543/f1?user=f1_user"
     )
@@ -46,19 +63,22 @@ def test_init_reads_connection_environment_and_sets_jdbc_properties(supabase):
         "sslmode": "require",
         "reWriteBatchedInserts": "true",
     }
-    supabase_module.load_dotenv.assert_called_once_with()
 
 
 def test_init_uses_default_database_port(monkeypatch, spark, configure_supabase_env):
     monkeypatch.delenv("SUPABASE_DB_PORT")
+    configure_supabase_env()
 
     instance = Supabase(spark)
 
     assert instance.DB_PORT == "5432"
 
 
-def test_init_rejects_missing_required_environment(monkeypatch, spark, configure_supabase_env):
+def test_init_rejects_missing_required_environment(
+    monkeypatch, spark, configure_supabase_env
+):
     monkeypatch.delenv("SUPABASE_DB_PASSWORD")
+    configure_supabase_env()
     logger = Mock()
     monkeypatch.setattr(supabase_module, "logger", logger)
 

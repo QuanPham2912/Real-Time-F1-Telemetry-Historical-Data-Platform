@@ -1,7 +1,9 @@
+from types import SimpleNamespace
 import pytest
 from unittest.mock import Mock, MagicMock, patch, call
 from kafka.errors import TopicAlreadyExistsError
 from kafka.admin import NewTopic
+import streaming.topic_manager as topic_manager_module
 from streaming.topic_manager import KafkaTopicManager
 from streaming.base import BaseTopicManager
 from metadata.f1_topic import F1Topic
@@ -17,7 +19,23 @@ class TestKafkaTopicManager:
             yield mock_client
 
     @pytest.fixture
-    def kafka_manager(self, mock_admin_client):
+    def topic_configs(self, monkeypatch):
+        configs = {
+            topic.value: {
+                "num_partitions": index + 1,
+                "replication_factor": 2,
+            }
+            for index, topic in enumerate(F1Topic)
+        }
+        monkeypatch.setattr(
+            topic_manager_module,
+            "load_config",
+            Mock(return_value={"topics": configs}),
+        )
+        return configs
+
+    @pytest.fixture
+    def kafka_manager(self, mock_admin_client, topic_configs):
         """Fixture to provide a KafkaTopicManager instance with mocked admin client."""
         mock_instance = MagicMock()
         mock_admin_client.return_value = mock_instance
@@ -33,32 +51,39 @@ class TestKafkaTopicManager:
         self, mock_admin_client, monkeypatch
     ):
         """Test KafkaTopicManager reads bootstrap servers from the environment."""
-        monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker-from-env:9092")
-        with patch("streaming.topic_manager.load_dotenv") as mock_load_dotenv:
-            KafkaTopicManager()
+        monkeypatch.setattr(
+            topic_manager_module,
+            "settings",
+            SimpleNamespace(kafka_bootstrap_servers="broker-from-settings:9092"),
+        )
+        KafkaTopicManager()
 
-        mock_load_dotenv.assert_called_once_with()
         mock_admin_client.assert_called_once_with(
-            bootstrap_servers="broker-from-env:9092"
+            bootstrap_servers="broker-from-settings:9092"
         )
 
     def test_init_with_default_bootstrap_servers_when_environment_is_missing(
         self, mock_admin_client, monkeypatch
     ):
         """Test KafkaTopicManager uses the default when no bootstrap env is set."""
-        monkeypatch.delenv("KAFKA_BOOTSTRAP_SERVERS", raising=False)
-        with patch("streaming.topic_manager.load_dotenv"):
-            KafkaTopicManager()
+        monkeypatch.setattr(
+            topic_manager_module,
+            "settings",
+            SimpleNamespace(kafka_bootstrap_servers="kafka1:19092"),
+        )
+        KafkaTopicManager()
 
         mock_admin_client.assert_called_once_with(bootstrap_servers="kafka1:19092")
 
     def test_init_with_custom_bootstrap_servers(self, mock_admin_client, monkeypatch):
         """Test KafkaTopicManager uses explicitly supplied bootstrap servers."""
-        monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker-from-env:9092")
+        monkeypatch.setattr(
+            topic_manager_module,
+            "settings",
+            SimpleNamespace(kafka_bootstrap_servers="broker-from-settings:9092"),
+        )
         custom_servers = "kafka1:9092,kafka2:9092"
-        with patch("streaming.topic_manager.load_dotenv") as mock_load_dotenv:
-            KafkaTopicManager(bootstrap_servers=custom_servers)
-        mock_load_dotenv.assert_not_called()
+        KafkaTopicManager(bootstrap_servers=custom_servers)
         mock_admin_client.assert_called_once_with(bootstrap_servers=custom_servers)
 
     def test_create_topic_success(self, kafka_manager):
@@ -134,7 +159,7 @@ class TestKafkaTopicManager:
         assert result == []
         kafka_manager.admin_client.list_topics.assert_called_once()
 
-    def test_init_topics_success(self, kafka_manager):
+    def test_init_topics_success(self, kafka_manager, topic_configs):
         """Test successful initialization of all configured topics."""
         kafka_manager.init_topics()
         
@@ -142,8 +167,7 @@ class TestKafkaTopicManager:
         call_args = kafka_manager.admin_client.create_topics.call_args
         new_topics = call_args[1]['new_topics']
         
-        # Should create all topics from TOPIC_CONFIGS
-        assert len(new_topics) == len(KafkaTopicManager.TOPIC_CONFIGS)
+        assert len(new_topics) == len(topic_configs)
         
         # Verify all topics are created with correct settings
         created_names = {t.name for t in new_topics}
@@ -192,16 +216,16 @@ class TestKafkaTopicManager:
         
         mock_instance.close.assert_called_once()
 
-    def test_topic_configs_has_all_f1_topics(self):
-        """Test that TOPIC_CONFIGS contains all F1Topic enum values."""
-        configured_topics = set(KafkaTopicManager.TOPIC_CONFIGS.keys())
-        all_f1_topics = set(F1Topic)
+    def test_topic_configs_has_all_f1_topics(self, topic_configs):
+        """Test that the streaming configuration includes all F1 topics."""
+        configured_topics = set(topic_configs)
+        all_f1_topics = {topic.value for topic in F1Topic}
         
         assert configured_topics == all_f1_topics
 
-    def test_topic_configs_partition_values(self):
+    def test_topic_configs_partition_values(self, topic_configs):
         """Test that topic configurations have valid partition values."""
-        for topic, config in KafkaTopicManager.TOPIC_CONFIGS.items():
+        for config in topic_configs.values():
             assert 'num_partitions' in config
             assert 'replication_factor' in config
             assert config['num_partitions'] > 0
@@ -215,8 +239,10 @@ class TestKafkaTopicManager:
         call_kwargs = kafka_manager.admin_client.create_topics.call_args[1]
         assert call_kwargs['validate_only'] is False
 
-    def test_init_topics_creates_all_configured_topics_correctly(self, kafka_manager):
-        """Test that init_topics creates topics with correct configuration from TOPIC_CONFIGS."""
+    def test_init_topics_creates_all_configured_topics_correctly(
+        self, kafka_manager, topic_configs
+    ):
+        """Test that init_topics uses the streaming configuration."""
         kafka_manager.init_topics()
         
         call_args = kafka_manager.admin_client.create_topics.call_args
@@ -224,7 +250,6 @@ class TestKafkaTopicManager:
         
         # Verify each topic matches its configuration
         for new_topic in new_topics:
-            topic_enum = [t for t in F1Topic if t.value == new_topic.name][0]
-            config = KafkaTopicManager.TOPIC_CONFIGS[topic_enum]
+            config = topic_configs[new_topic.name]
             assert new_topic.num_partitions == config['num_partitions']
             assert new_topic.replication_factor == config['replication_factor']

@@ -1,22 +1,12 @@
-"""
-Two DAGs that only call `python pipeline.py <stage>`; all logic lives in src/pipeline.py.
-
-  f1_incremental : every Monday, loads the latest finished race (also triggerable by hand)
-  f1_backfill    : manual, loads a range of seasons
-
-One task per layer. Table ordering inside Silver/Gold is handled by SILVER_ORDER / GOLD_ORDER
-in pipeline.py, so the DAG stays small and Spark only starts once per layer.
-"""
-import os
 from datetime import timedelta
 
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.sdk import DAG
 import pendulum
-from dotenv import load_dotenv
+from metadata.setting import get_settings
 
-load_dotenv()
-local_tz = pendulum.timezone(os.getenv("TIMEZONE", "UTC"))
+settings = get_settings()
+local_tz = pendulum.timezone(settings.timezone)
 
 CMD = "cd /opt/airflow/src && python pipeline.py"
 
@@ -52,7 +42,10 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     default_args=DEFAULT_ARGS,
-    params={"season": "current", "round": "latest"},  # override with "Trigger DAG w/ config"
+    params={
+        "season": "current",
+        "round": "latest",
+    },  # override with "Trigger DAG w/ config"
     tags=["f1"],
 ):
     add_pipeline("--season {{ params.season }} --round {{ params.round }}")
@@ -69,4 +62,6 @@ with DAG(
     params={"from_season": 2023, "to_season": 2023},
     tags=["f1"],
 ):
-    add_pipeline("--season {{ params.from_season }} --to-season {{ params.to_season }} --round all --allow-partial")
+    add_pipeline(
+        "--season {{ params.from_season }} --to-season {{ params.to_season }} --round all --allow-partial"
+    )

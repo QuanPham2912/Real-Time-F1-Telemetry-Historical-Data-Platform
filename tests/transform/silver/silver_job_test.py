@@ -22,22 +22,30 @@ with patch.dict(sys.modules, {"delta": delta_package, "delta.tables": delta_tabl
 
 
 def test_init_reads_bronze_and_silver_paths_from_environment(monkeypatch):
-	monkeypatch.setenv("BRONZE_BASE_PATH", "s3a://custom-bronze/root/")
-	monkeypatch.setenv("SILVER_BASE_PATH", "s3a://custom-silver/root/")
-	load_dotenv = Mock()
-	monkeypatch.setattr(silver_job_module, "load_dotenv", load_dotenv)
+	monkeypatch.setattr(
+		silver_job_module,
+		"settings",
+		SimpleNamespace(
+			bronze_base_path="s3a://custom-bronze/root/",
+			silver_base_path="s3a://custom-silver/root/",
+		),
+	)
 
 	job = silverJob(SimpleNamespace())
 
-	load_dotenv.assert_called_once_with()
 	assert job.bronzeBasePath == "s3a://custom-bronze/root/"
 	assert job.silverBasePath == "s3a://custom-silver/root/"
 
 
 def test_init_uses_default_paths_when_environment_is_missing(monkeypatch):
-	monkeypatch.delenv("BRONZE_BASE_PATH", raising=False)
-	monkeypatch.delenv("SILVER_BASE_PATH", raising=False)
-	monkeypatch.setattr(silver_job_module, "load_dotenv", Mock())
+	monkeypatch.setattr(
+		silver_job_module,
+		"settings",
+		SimpleNamespace(
+			bronze_base_path="s3a://f1-bronze/",
+			silver_base_path="s3a://f1-silver/",
+		),
+	)
 
 	job = silverJob(SimpleNamespace())
 
@@ -46,9 +54,14 @@ def test_init_uses_default_paths_when_environment_is_missing(monkeypatch):
 
 
 def test_init_explicit_paths_override_environment(monkeypatch):
-	monkeypatch.setenv("BRONZE_BASE_PATH", "s3a://env-bronze/")
-	monkeypatch.setenv("SILVER_BASE_PATH", "s3a://env-silver/")
-	monkeypatch.setattr(silver_job_module, "load_dotenv", Mock())
+	monkeypatch.setattr(
+		silver_job_module,
+		"settings",
+		SimpleNamespace(
+			bronze_base_path="s3a://env-bronze/",
+			silver_base_path="s3a://env-silver/",
+		),
+	)
 
 	job = silverJob(
 		SimpleNamespace(),

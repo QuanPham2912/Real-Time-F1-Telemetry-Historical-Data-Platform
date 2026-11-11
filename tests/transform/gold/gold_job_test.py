@@ -36,22 +36,30 @@ def build_delta_reader(dataframe):
 
 
 def test_init_reads_gold_and_silver_paths_from_environment(monkeypatch):
-	monkeypatch.setenv("GOLD_BASE_PATH", "s3a://custom-gold/root/")
-	monkeypatch.setenv("SILVER_BASE_PATH", "s3a://custom-silver/root/")
-	load_dotenv = Mock()
-	monkeypatch.setattr(gold_job_module, "load_dotenv", load_dotenv)
+	monkeypatch.setattr(
+		gold_job_module,
+		"settings",
+		SimpleNamespace(
+			gold_base_path="s3a://custom-gold/root/",
+			silver_base_path="s3a://custom-silver/root/",
+		),
+	)
 
 	job = gold_job_module.goldJob(SimpleNamespace())
 
-	load_dotenv.assert_called_once_with()
 	assert job.goldBasePath == "s3a://custom-gold/root/"
 	assert job.silverBasePath == "s3a://custom-silver/root/"
 
 
 def test_init_uses_default_paths_when_environment_is_missing(monkeypatch):
-	monkeypatch.delenv("GOLD_BASE_PATH", raising=False)
-	monkeypatch.delenv("SILVER_BASE_PATH", raising=False)
-	monkeypatch.setattr(gold_job_module, "load_dotenv", Mock())
+	monkeypatch.setattr(
+		gold_job_module,
+		"settings",
+		SimpleNamespace(
+			gold_base_path="s3a://f1-gold/",
+			silver_base_path="s3a://f1-silver/",
+		),
+	)
 
 	job = gold_job_module.goldJob(SimpleNamespace())
 
@@ -60,9 +68,14 @@ def test_init_uses_default_paths_when_environment_is_missing(monkeypatch):
 
 
 def test_init_explicit_paths_override_environment(monkeypatch):
-	monkeypatch.setenv("GOLD_BASE_PATH", "s3a://env-gold/")
-	monkeypatch.setenv("SILVER_BASE_PATH", "s3a://env-silver/")
-	monkeypatch.setattr(gold_job_module, "load_dotenv", Mock())
+	monkeypatch.setattr(
+		gold_job_module,
+		"settings",
+		SimpleNamespace(
+			gold_base_path="s3a://env-gold/",
+			silver_base_path="s3a://env-silver/",
+		),
+	)
 
 	job = gold_job_module.goldJob(
 		SimpleNamespace(),
@@ -137,12 +150,9 @@ def test_process_gold_table_reads_sources_deduplicates_and_writes(monkeypatch):
 	job.read_gold_source = Mock(
 		side_effect=lambda *, gold_source: gold_dataframes[gold_source]
 	)
-	write_to_delta = Mock()
-	monkeypatch.setattr(
-		gold_job_module.DeltaBatchWriter,
-		"write_to_delta",
-		write_to_delta,
-	)
+	writer = Mock()
+	monkeypatch.setattr(gold_job_module, "get_writer", Mock(return_value=writer))
+	job.writer = writer
 
 	result = job.process_gold_table(config)
 
@@ -162,7 +172,7 @@ def test_process_gold_table_reads_sources_deduplicates_and_writes(monkeypatch):
 	transformed_dataframe.dropDuplicates.assert_called_once_with(
 		config.primary_keys
 	)
-	write_to_delta.assert_called_once_with(
+	writer.write.assert_called_once_with(
 		df=deduplicated_dataframe,
 		deltaPath="s3a://gold-root/FACT_TELEMETRY",
 		outputMode="overwrite",
